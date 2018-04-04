@@ -1,22 +1,23 @@
 package com.zyuc.dpi.etl
 
+import java.text.SimpleDateFormat
 import java.util.Date
 
 import com.zyuc.dpi.etl.utils.AccessConveterUtil
 import com.zyuc.dpi.utils.FileUtils
 import org.apache.hadoop.fs.{FileSystem, Path}
-import org.apache.spark.sql
-import org.apache.spark.sql.{SQLContext, SaveMode}
 import org.apache.log4j.Logger
+import org.apache.spark.sql
+import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
 
 import scala.collection.mutable
 
 /**
   * Created by zhoucw on 下午10:01.
   */
-object AccesslogETL {
+object AccesslogETL2 {
   def main(args: Array[String]): Unit = {
-    val spark = new sql.SparkSession.Builder().enableHiveSupport().getOrCreate()
+    val spark = new sql.SparkSession.Builder().appName("test_201803151202").master("local[2]").enableHiveSupport().getOrCreate()
 
     val sc = spark.sparkContext
     val sqlContext = spark.sqlContext
@@ -30,10 +31,10 @@ object AccesslogETL {
     val ifRefreshPartiton = sc.getConf.get("spark.app.ifRefreshPartiton", "0") // 是否刷新分区, 0-不刷新, 1-刷新
     val tryTime = 1
     val fileSystem = FileSystem.get(sc.hadoopConfiguration)
-
+    val loadTime = "2018-03-16 16:00:00"
 
     doJob(sqlContext, fileSystem, appName, inputPath, outputPath, coalesceSize,
-      accessTable, ifRefreshPartiton, tryTime)
+      loadTime, accessTable, ifRefreshPartiton, tryTime)
 
   }
 
@@ -52,8 +53,8 @@ object AccesslogETL {
     */
   @throws(classOf[Exception])
   def doJob(parentContext: SQLContext, fileSystem: FileSystem, appName: String,
-            inputPath: String, outputPath: String, coalesceSize: Int, accessTable: String,
-            ifRefreshPartiton: String, tryTime: Int): String = {
+            inputPath: String, outputPath: String, coalesceSize: Int, loadTime:String,
+            accessTable: String, ifRefreshPartiton: String, tryTime: Int): String = {
 
     try{
       var result = "app:" + appName + ", tryTime:" + tryTime
@@ -99,17 +100,40 @@ object AccesslogETL {
         logger.info(s"[$appName] $inputLocation move to $inputDoingLocation success")
       }
 
-      var coalesceNum = FileUtils.computePartitionNum(fileSystem, inputDoingLocation, coalesceSize)
-      logger.info(s"[$appName ] coalesceNum $coalesceNum")
+      val sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+      val endTime = sdf.parse(loadTime)
+      val beginTime = sdf.format(endTime.getTime() - 2*60*60*1000)
+      val curHourTime = sdf.format(endTime.getTime() - 1*60*60*1000)
 
-      val accRowRdd = sqlContext.sparkContext.textFile(inputDoingLocation).
-        map(x => AccessConveterUtil.parse(x)).filter(_.length != 1)
+      var resultDF:DataFrame = null
 
-      val accDF = sqlContext.createDataFrame(accRowRdd, AccessConveterUtil.struct)
-      accDF.coalesce(coalesceNum).write.mode(SaveMode.Overwrite).format("orc")
+      fileSystem.globStatus(new Path(inputDoingLocation+"/*")).foreach(p=>{
+        val hLoc = p.getPath.toString
+        val partitionNum = FileUtils.computePartitionNum(fileSystem, hLoc, coalesceSize)
+        logger.info("hLoc:" + hLoc + ", partitionNum:" + partitionNum)
+        val hRowRdd = sqlContext.sparkContext.textFile(hLoc).
+          map(x => AccessConveterUtil.parse(x)).filter(_.length != 1)
+        val hDF = sqlContext.createDataFrame(hRowRdd, AccessConveterUtil.struct)
+        val curHourDF = hDF.filter(s"acctime>='$curHourTime'")
+        val preHourDF = hDF.filter(s"acctime>'$beginTime' and acctime<'$curHourTime' ")
+
+        val preHourPartNum = if(partitionNum/3 == 0) 1 else partitionNum/3
+
+        val newDF = curHourDF.coalesce(partitionNum).union(preHourDF.coalesce(preHourPartNum))
+
+        if(resultDF != null){
+          resultDF = resultDF.union(newDF)
+        }else{
+          resultDF = newDF
+        }
+      })
+
+      resultDF.write.mode(SaveMode.Overwrite).format("orc")
         .partitionBy(partitions.split(","): _*).save(outputPath + "temp/" + batchID)
       val convertTime = new Date().getTime - begin
       logger.info("[" + appName + "] 数据转换用时：" + convertTime)
+
+
 
       begin = new Date().getTime
       val outFiles = fileSystem.globStatus(new Path(outputPath + "temp/" + batchID + getTemplate + "/*.orc"))
@@ -118,13 +142,14 @@ object AccesslogETL {
         val nowPath = outFiles(i).getPath.toString
         filePartitions.+=(nowPath.substring(0, nowPath.lastIndexOf("/")).replace(outputPath + "temp/" + batchID, "").substring(1))
       }
+
       FileUtils.moveTempFiles(fileSystem, outputPath, batchID, getTemplate, filePartitions)
       val moveTime = new Date().getTime - begin
       logger.info("[" + appName + "] 数据移动到正式分区用时：" + moveTime)
 
 
       val inputDoneLocation = inputPath + "/" + batchID + "_done"
-      val isDoneRenamed = FileUtils.renameHDFSDir(fileSystem, inputDoingLocation, inputDoneLocation)
+     val isDoneRenamed =  FileUtils.renameHDFSDir(fileSystem, inputDoingLocation, inputDoneLocation)
 
       if (!isDoneRenamed) {
         logger.info(s"[$appName] $inputDoingLocation move to $inputDoneLocation failed")
@@ -173,8 +198,8 @@ object AccesslogETL {
 
     }catch {
       case e:Exception =>{
-      e.printStackTrace()
-      e.getMessage
+        e.printStackTrace()
+        e.getMessage
       }
     }
 

@@ -1,22 +1,23 @@
 package com.zyuc.dpi.etl
 
+import java.text.SimpleDateFormat
 import java.util.Date
 
 import com.zyuc.dpi.etl.utils.AccessConveterUtil
 import com.zyuc.dpi.utils.FileUtils
 import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.log4j.Logger
 import org.apache.spark.sql
 import org.apache.spark.sql.{SQLContext, SaveMode}
-import org.apache.log4j.Logger
 
 import scala.collection.mutable
 
 /**
   * Created by zhoucw on 下午10:01.
   */
-object AccesslogETL {
+object AccesslogETL4 {
   def main(args: Array[String]): Unit = {
-    val spark = new sql.SparkSession.Builder().enableHiveSupport().getOrCreate()
+    val spark = new sql.SparkSession.Builder().appName("test_201803151201").master("local[2]").enableHiveSupport().getOrCreate()
 
     val sc = spark.sparkContext
     val sqlContext = spark.sqlContext
@@ -30,10 +31,10 @@ object AccesslogETL {
     val ifRefreshPartiton = sc.getConf.get("spark.app.ifRefreshPartiton", "0") // 是否刷新分区, 0-不刷新, 1-刷新
     val tryTime = 1
     val fileSystem = FileSystem.get(sc.hadoopConfiguration)
-
+    val loadTime = "2018-03-16 16:00:00"
 
     doJob(sqlContext, fileSystem, appName, inputPath, outputPath, coalesceSize,
-      accessTable, ifRefreshPartiton, tryTime)
+      loadTime, accessTable, ifRefreshPartiton, tryTime)
 
   }
 
@@ -52,8 +53,8 @@ object AccesslogETL {
     */
   @throws(classOf[Exception])
   def doJob(parentContext: SQLContext, fileSystem: FileSystem, appName: String,
-            inputPath: String, outputPath: String, coalesceSize: Int, accessTable: String,
-            ifRefreshPartiton: String, tryTime: Int): String = {
+            inputPath: String, outputPath: String, coalesceSize: Int, loadTime:String,
+            accessTable: String, ifRefreshPartiton: String, tryTime: Int): String = {
 
     try{
       var result = "app:" + appName + ", tryTime:" + tryTime
@@ -102,11 +103,23 @@ object AccesslogETL {
       var coalesceNum = FileUtils.computePartitionNum(fileSystem, inputDoingLocation, coalesceSize)
       logger.info(s"[$appName ] coalesceNum $coalesceNum")
 
+      val sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+      val endTime = sdf.parse(loadTime)
+      val beginTime = sdf.format(endTime.getTime() - 2*60*60*1000)
+      val curHourTime = sdf.format(endTime.getTime() - 1*60*60*1000)
+
       val accRowRdd = sqlContext.sparkContext.textFile(inputDoingLocation).
-        map(x => AccessConveterUtil.parse(x)).filter(_.length != 1)
+        map(x => AccessConveterUtil.parse(x)).filter(_.length != 1)//.filter(x=>x.getString(10)>beginTime && x.getString(10)< loadTime)
 
       val accDF = sqlContext.createDataFrame(accRowRdd, AccessConveterUtil.struct)
-      accDF.coalesce(coalesceNum).write.mode(SaveMode.Overwrite).format("orc")
+
+      val curHourDF = accDF.filter(s"acctime>='$curHourTime'")
+      val preHourDF = accDF.filter(s"acctime>'$beginTime' and acctime<'$curHourTime' ")
+
+      val newDF = curHourDF.coalesce(60).union(preHourDF.coalesce(20))
+
+
+      newDF.write.mode(SaveMode.Overwrite).format("orc")
         .partitionBy(partitions.split(","): _*).save(outputPath + "temp/" + batchID)
       val convertTime = new Date().getTime - begin
       logger.info("[" + appName + "] 数据转换用时：" + convertTime)

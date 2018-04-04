@@ -20,6 +20,7 @@ object AccessConveterUtil {
     StructField("destport", StringType),
     StructField("domain", StringType),
     StructField("url", StringType),
+    StructField("isbase", StringType),
     StructField("duration", StringType),
     StructField("acctime", StringType),
 
@@ -35,11 +36,11 @@ object AccessConveterUtil {
     */
   def getTime(time: String): Tuple4[String, String, String, String] = {
     try {
-      val targetfdf = FastDateFormat.getInstance("yyyyMMddHHmmss")
+      val targetfdf = FastDateFormat.getInstance("yyyy-MM-dd HH:mm:ss")
       val timeStr = targetfdf.format(time.toLong * 1000)
-      val d = timeStr.substring(2, 8).replaceAll("-", "")
-      val h = timeStr.substring(8, 10)
-      val m5 = timeStr.substring(10, 11) + (timeStr.substring(11, 12).toInt / 5) * 5
+      val d = timeStr.substring(2, 10).replaceAll("-", "")
+      val h = timeStr.substring(11, 13)
+      val m5 = timeStr.substring(14, 15) + (timeStr.substring(15, 16).toInt / 5) * 5
       (timeStr, d, h, m5)
     } catch {
       case e: Exception => {
@@ -67,19 +68,20 @@ object AccessConveterUtil {
       }
 
       var url = arr(7)
+      var isbase = "1"
       try {
         val urlBytes = Base64.getDecoder.decode(arr(7))
-        url = new String(urlBytes, "utf-8")
       } catch {
         case e: Exception => {
           //e.printStackTrace()
+          isbase = "0"
         }
       }
-      Row(houseid, arr(1), arr(2), arr(3), arr(4), arr(5), arr(6), url, arr(8), timeTuple._1, timeTuple._2, timeTuple._3, timeTuple._4)
+      Row(houseid, arr(1), arr(2), arr(3), arr(4), arr(5), arr(6), url, isbase, arr(8), timeTuple._1, timeTuple._2, timeTuple._3, timeTuple._4)
     } catch {
       case e: Exception => {
         val houseid = -1
-        Row(houseid, line, "-1", "-1", "-1", "-1", "-1", "-1", "-1", "-1", "-1", "-1", "-1")
+        Row(houseid, line, "-1", "-1", "-1", "-1", "-1", "-1", "-1", "-1", "-1", "-1", "-1", "-1")
       }
     }
   }

@@ -5,11 +5,13 @@ package com.zyuc.dpi.service
   */
 import java.io.OutputStream
 import java.net.InetSocketAddress
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.concurrent.Executors
 
 import com.alibaba.fastjson.JSON
 import com.sun.net.httpserver.{Headers, HttpExchange, HttpHandler, HttpServer}
-import com.zyuc.dpi.etl.AccesslogETL
+import com.zyuc.dpi.etl.{AccesslogETL, AccesslogETL2, AccesslogETL3, AccesslogETL4}
 import org.apache.hadoop.fs.FileSystem
 import org.apache.spark.sql.SparkSession
 
@@ -63,8 +65,64 @@ object SparkServer {
             val ifRefreshPartiton = Params.getString("ifRefreshPartiton")
             val tryTime = Params.getString("tryTime").toInt
             serverInfo = "服务异常"
+            val sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+            val begin = new Date().getTime
             serverInfo = AccesslogETL.doJob(sqlContext, fileSystem, appName, inputPath,
               outputPath, coalesceSize, accessTable, ifRefreshPartiton, tryTime)
+            val end = new Date().getTime
+            serverInfo = serverInfo + "s=" + sdf.format(begin) + "=e=" + sdf.format(end) + "=t=" + (end - begin)+ "="
+          }else if(serverLine == "accessM5ETL2"){
+            val sqlContext = spark.sqlContext
+            sqlContext.sql("use dpi")
+            val appName = Params.getString("appName")
+            val inputPath = Params.getString("inputPath")
+            val outputPath = Params.getString("outputPath")
+            val coalesceSize = Params.getString("coalesceSize").toInt
+            val accessTable = Params.getString("accessTable")
+            val ifRefreshPartiton = Params.getString("ifRefreshPartiton")
+            val tryTime = Params.getString("tryTime").toInt
+            val loadTime = Params.getString("loadTime")
+            serverInfo = "服务异常"
+            val sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+            val begin = new Date().getTime
+            serverInfo = AccesslogETL2.doJob(sqlContext, fileSystem, appName, inputPath,
+              outputPath, coalesceSize, loadTime, accessTable, ifRefreshPartiton, tryTime)
+            val end = new Date().getTime
+            serverInfo = serverInfo + "s=" + sdf.format(begin) + "=e=" + sdf.format(end) + "=t=" + (end - begin)+ "="
+          }else if(serverLine == "accessM5ETL3"){
+            spark.sql("use dpi")
+            val appName = Params.getString("appName")
+            val inputPath = Params.getString("inputPath")
+            val outputPath = Params.getString("outputPath")
+            val coalesceSize = Params.getString("coalesceSize").toInt
+            val accessTable = Params.getString("accessTable")
+            val ifRefreshPartiton = Params.getString("ifRefreshPartiton")
+            val tryTime = Params.getString("tryTime").toInt
+            serverInfo = "服务异常"
+            val sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+            val begin = new Date().getTime
+            serverInfo = AccesslogETL3.doJob(spark, fileSystem, appName, inputPath,
+              outputPath, coalesceSize, accessTable, ifRefreshPartiton, tryTime)
+            val end = new Date().getTime
+            serverInfo = serverInfo + "s=" + sdf.format(begin) + "=e=" + sdf.format(end) + "=t=" + (end - begin)+ "="
+          }else if(serverLine == "accessM5ETL4"){
+            val sqlContext = spark.sqlContext
+            sqlContext.sql("use dpi")
+            val appName = Params.getString("appName")
+            val inputPath = Params.getString("inputPath")
+            val outputPath = Params.getString("outputPath")
+            val coalesceSize = Params.getString("coalesceSize").toInt
+            val accessTable = Params.getString("accessTable")
+            val ifRefreshPartiton = Params.getString("ifRefreshPartiton")
+            val tryTime = Params.getString("tryTime").toInt
+            val loadTime = Params.getString("loadTime")
+            serverInfo = "服务异常"
+            val sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+            val begin = new Date().getTime
+            serverInfo = AccesslogETL4.doJob(sqlContext, fileSystem, appName, inputPath,
+              outputPath, coalesceSize, loadTime, accessTable, ifRefreshPartiton, tryTime)
+            val end = new Date().getTime
+            serverInfo = serverInfo + "s=" + sdf.format(begin) + "=e=" + sdf.format(end) + "=t=" + (end - begin)+ "="
           }
           else {
             System.out.println("go")

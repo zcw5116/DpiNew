@@ -20,7 +20,8 @@ object Spark2Test {
     }
 
 
-    //val rdd = sc.parallelize(list.toArray()).asInstanceOf[RDD[Tuple3[String, String, String]]]
+   val rdd = sc.parallelize(list.toArray()).asInstanceOf[RDD[Tuple3[String, String, String]]]
+
    // rdd.map(x=>x._1).collect().foreach(println)
 
     val str = "/tmp/test1/1005/0x01+0x03a0+000+I-JS-CZQLLWYLS+eversec+038+20180316115502.txt"

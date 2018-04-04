@@ -5,18 +5,18 @@ import java.util.Date
 import com.zyuc.dpi.etl.utils.AccessConveterUtil
 import com.zyuc.dpi.utils.FileUtils
 import org.apache.hadoop.fs.{FileSystem, Path}
-import org.apache.spark.sql
-import org.apache.spark.sql.{SQLContext, SaveMode}
 import org.apache.log4j.Logger
+import org.apache.spark.sql
+import org.apache.spark.sql.{SaveMode, SparkSession}
 
 import scala.collection.mutable
 
 /**
   * Created by zhoucw on 下午10:01.
   */
-object AccesslogETL {
+object AccesslogETL3 {
   def main(args: Array[String]): Unit = {
-    val spark = new sql.SparkSession.Builder().enableHiveSupport().getOrCreate()
+    val spark = new sql.SparkSession.Builder().appName("test_201803151201").master("local[2]").enableHiveSupport().getOrCreate()
 
     val sc = spark.sparkContext
     val sqlContext = spark.sqlContext
@@ -31,15 +31,14 @@ object AccesslogETL {
     val tryTime = 1
     val fileSystem = FileSystem.get(sc.hadoopConfiguration)
 
-
-    doJob(sqlContext, fileSystem, appName, inputPath, outputPath, coalesceSize,
-      accessTable, ifRefreshPartiton, tryTime)
+    doJob(spark, fileSystem, appName, inputPath, outputPath,
+      coalesceSize, accessTable, ifRefreshPartiton, tryTime)
 
   }
 
   /**
     *
-    * @param parentContext
+    * @param parentSpark
     * @param fileSystem
     * @param appName           App名字, 格式:${name}_批次目录, 如 201803221501-g1
     * @param inputPath
@@ -51,16 +50,16 @@ object AccesslogETL {
     * @return
     */
   @throws(classOf[Exception])
-  def doJob(parentContext: SQLContext, fileSystem: FileSystem, appName: String,
+  def doJob(parentSpark: SparkSession, fileSystem: FileSystem, appName: String,
             inputPath: String, outputPath: String, coalesceSize: Int, accessTable: String,
             ifRefreshPartiton: String, tryTime: Int): String = {
 
-    try{
+    try {
       var result = "app:" + appName + ", tryTime:" + tryTime
       val logger = Logger.getLogger("org")
       var begin = new Date().getTime
 
-      val sqlContext = parentContext.newSession()
+      val spark = parentSpark.newSession()
 
       val batchID = appName.substring(appName.lastIndexOf("_") + 1)
 
@@ -102,27 +101,14 @@ object AccesslogETL {
       var coalesceNum = FileUtils.computePartitionNum(fileSystem, inputDoingLocation, coalesceSize)
       logger.info(s"[$appName ] coalesceNum $coalesceNum")
 
-      val accRowRdd = sqlContext.sparkContext.textFile(inputDoingLocation).
+      val accRowRdd = spark.sparkContext.textFile(inputDoingLocation).
         map(x => AccessConveterUtil.parse(x)).filter(_.length != 1)
 
-      val accDF = sqlContext.createDataFrame(accRowRdd, AccessConveterUtil.struct)
-      accDF.coalesce(coalesceNum).write.mode(SaveMode.Overwrite).format("orc")
-        .partitionBy(partitions.split(","): _*).save(outputPath + "temp/" + batchID)
+      val accDF = spark.createDataFrame(accRowRdd, AccessConveterUtil.struct)
+      accDF.coalesce(coalesceNum).write.mode(SaveMode.Append).format("orc")
+        .partitionBy(partitions.split(","): _*).save(outputPath + "data/")
       val convertTime = new Date().getTime - begin
       logger.info("[" + appName + "] 数据转换用时：" + convertTime)
-
-      begin = new Date().getTime
-      val outFiles = fileSystem.globStatus(new Path(outputPath + "temp/" + batchID + getTemplate + "/*.orc"))
-      val filePartitions = new mutable.HashSet[String]
-      for (i <- 0 until outFiles.length) {
-        val nowPath = outFiles(i).getPath.toString
-        filePartitions.+=(nowPath.substring(0, nowPath.lastIndexOf("/")).replace(outputPath + "temp/" + batchID, "").substring(1))
-      }
-      FileUtils.moveTempFiles(fileSystem, outputPath, batchID, getTemplate, filePartitions)
-      val moveTime = new Date().getTime - begin
-      logger.info("[" + appName + "] 数据移动到正式分区用时：" + moveTime)
-
-
       val inputDoneLocation = inputPath + "/" + batchID + "_done"
       val isDoneRenamed = FileUtils.renameHDFSDir(fileSystem, inputDoingLocation, inputDoneLocation)
 
@@ -133,51 +119,14 @@ object AccesslogETL {
       }
       logger.info(s"[$appName]  $inputDoingLocation move to $inputDoneLocation success")
 
-      // 是否刷新分区
-      if (ifRefreshPartiton == "0") {
-        return result + " success ," + "convertTime:#" + convertTime + "#,moveTime:#" + moveTime+"#"
-      }
+      result + " success," + "convertTime:#" + convertTime
 
-      begin = new Date().getTime
-      // 过滤
-      //filePartitions.filter(x=>(x.substring(x.indexOf("/d="), x.indexOf("/h=")))>"a")
-      filePartitions.foreach(partition => {
-        var hid = ""
-        var d = ""
-        var h = ""
-        var m5 = ""
-        partition.split("/").map(x => {
-          if (x.startsWith("hid=")) {
-            hid = x.substring(4)
-          }
-          if (x.startsWith("d=")) {
-            d = x.substring(2)
-          }
-          if (x.startsWith("h=")) {
-            h = x.substring(2)
-          }
-          if (x.startsWith("m5=")) {
-            m5 = x.substring(3)
-          }
-          null
-        })
-        if (d.nonEmpty && h.nonEmpty && m5.nonEmpty) {
-          val sql = s"alter table ${accessTable} add IF NOT EXISTS partition(hid='$hid', d='$d', h='$h',m5='$m5')"
-          sqlContext.sql(sql)
-        }
-      })
-      val refreshTime = new Date().getTime - begin
-      logger.info("[" + appName + "] 刷新分区用时：" + refreshTime)
-
-      result + " success," + "convertTime:#" + convertTime + "#,moveTime:#" + moveTime + "#,refreshTime:#" + refreshTime
-
-    }catch {
-      case e:Exception =>{
-      e.printStackTrace()
-      e.getMessage
+    } catch {
+      case e: Exception => {
+        e.printStackTrace()
+        e.getMessage
       }
     }
-
   }
 
 }
