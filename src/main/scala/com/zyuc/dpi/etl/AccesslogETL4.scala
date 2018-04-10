@@ -3,7 +3,7 @@ package com.zyuc.dpi.etl
 import java.text.SimpleDateFormat
 import java.util.Date
 
-import com.zyuc.dpi.etl.utils.AccessConveterUtil
+import com.zyuc.dpi.etl.utils.AccessUtil
 import com.zyuc.dpi.utils.FileUtils
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.log4j.Logger
@@ -109,9 +109,9 @@ object AccesslogETL4 {
       val curHourTime = sdf.format(endTime.getTime() - 1*60*60*1000)
 
       val accRowRdd = sqlContext.sparkContext.textFile(inputDoingLocation).
-        map(x => AccessConveterUtil.parse(x)).filter(_.length != 1)//.filter(x=>x.getString(10)>beginTime && x.getString(10)< loadTime)
+        map(x => AccessUtil.parse(x)).filter(_.length != 1)//.filter(x=>x.getString(10)>beginTime && x.getString(10)< loadTime)
 
-      val accDF = sqlContext.createDataFrame(accRowRdd, AccessConveterUtil.struct)
+      val accDF = sqlContext.createDataFrame(accRowRdd, AccessUtil.struct)
 
       val curHourDF = accDF.filter(s"acctime>='$curHourTime'")
       val preHourDF = accDF.filter(s"acctime>'$beginTime' and acctime<'$curHourTime' ")

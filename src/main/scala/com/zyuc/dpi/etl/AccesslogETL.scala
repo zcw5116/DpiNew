@@ -2,7 +2,7 @@ package com.zyuc.dpi.etl
 
 import java.util.Date
 
-import com.zyuc.dpi.etl.utils.AccessConveterUtil
+import com.zyuc.dpi.etl.utils.AccessUtil
 import com.zyuc.dpi.utils.FileUtils
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql
@@ -103,9 +103,9 @@ object AccesslogETL {
       logger.info(s"[$appName ] coalesceNum $coalesceNum")
 
       val accRowRdd = sqlContext.sparkContext.textFile(inputDoingLocation).
-        map(x => AccessConveterUtil.parse(x)).filter(_.length != 1)
+        map(x => AccessUtil.parse(x)).filter(_.length != 1)
 
-      val accDF = sqlContext.createDataFrame(accRowRdd, AccessConveterUtil.struct)
+      val accDF = sqlContext.createDataFrame(accRowRdd, AccessUtil.struct)
       accDF.coalesce(coalesceNum).write.mode(SaveMode.Overwrite).format("orc")
         .partitionBy(partitions.split(","): _*).save(outputPath + "temp/" + batchID)
       val convertTime = new Date().getTime - begin

@@ -15,6 +15,6 @@ object TestScala {
     val curHour = loadTime.substring(11,13)
     val preHour = beginTime.substring(11,13)
     println(curHour)
-    println(preHour)
+    println("102".hashCode)
   }
 }

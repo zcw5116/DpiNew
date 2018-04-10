@@ -3,7 +3,7 @@ package com.zyuc.dpi.etl
 import java.text.SimpleDateFormat
 import java.util.Date
 
-import com.zyuc.dpi.etl.utils.AccessConveterUtil
+import com.zyuc.dpi.etl.utils.AccessUtil
 import com.zyuc.dpi.utils.FileUtils
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.log4j.Logger
@@ -112,8 +112,8 @@ object AccesslogETL2 {
         val partitionNum = FileUtils.computePartitionNum(fileSystem, hLoc, coalesceSize)
         logger.info("hLoc:" + hLoc + ", partitionNum:" + partitionNum)
         val hRowRdd = sqlContext.sparkContext.textFile(hLoc).
-          map(x => AccessConveterUtil.parse(x)).filter(_.length != 1)
-        val hDF = sqlContext.createDataFrame(hRowRdd, AccessConveterUtil.struct)
+          map(x => AccessUtil.parse(x)).filter(_.length != 1)
+        val hDF = sqlContext.createDataFrame(hRowRdd, AccessUtil.struct)
         val curHourDF = hDF.filter(s"acctime>='$curHourTime'")
         val preHourDF = hDF.filter(s"acctime>'$beginTime' and acctime<'$curHourTime' ")
 
@@ -131,7 +131,7 @@ object AccesslogETL2 {
       resultDF.write.mode(SaveMode.Overwrite).format("orc")
         .partitionBy(partitions.split(","): _*).save(outputPath + "temp/" + batchID)
       val convertTime = new Date().getTime - begin
-      logger.info("[" + appName + "] 数据转换用时：" + convertTime)
+      logger.info("[" + appName + "] cost time：" + convertTime)
 
 
 

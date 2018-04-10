@@ -8,7 +8,7 @@ import java.util.Base64
 /**
   * Created on 上午3:16.
   */
-object AccessConveterUtil {
+object AccessUtil {
 
   val struct = StructType(Array(
     StructField("hid", IntegerType),
