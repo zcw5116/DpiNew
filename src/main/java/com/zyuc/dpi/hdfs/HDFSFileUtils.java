@@ -31,7 +31,6 @@ public class HDFSFileUtils {
      * @return
      */
     public static Configuration getConfig(String user, String keytabPath) {
-
         Configuration conf = new Configuration();
         conf.addResource(new Path("/etc/hadoop/conf/core-site.xml"));
         conf.addResource(new Path("/etc/hadoop/conf/hdfs-site.xml"));

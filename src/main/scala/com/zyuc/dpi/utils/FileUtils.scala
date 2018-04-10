@@ -214,44 +214,7 @@ object FileUtils {
   }
 
 
-  def moveTempFilesToESpath(fileSystem: FileSystem, outputPath: String, timeid: String, dayid: String): Unit = {
 
-    val dataPath = new Path(outputPath + dayid + "/" + timeid + "*")
-    fileSystem.globStatus(dataPath).foreach(x => fileSystem.delete(x.getPath(), false))
-
-
-    val tmpPath = new Path(outputPath + "tmp/" + timeid + "/part*")
-    val tmpStatus = fileSystem.globStatus(tmpPath)
-    var num = 0
-
-    tmpStatus.map(tmpStat => {
-      val tmpLocation = tmpStat.getPath().toString
-      var dataLocation = tmpLocation.replace(outputPath + "tmp/" + timeid, outputPath + dayid + "/")
-      val index = dataLocation.lastIndexOf("/")
-      dataLocation = dataLocation.substring(0, index + 1) + timeid + "-" + num + ".json"
-      num = num + 1
-
-      val tmpPath1 = new Path(tmpLocation)
-      val dataPath = new Path(dataLocation)
-
-      if (!fileSystem.exists(dataPath.getParent)) {
-        fileSystem.mkdirs(dataPath.getParent)
-      }
-      fileSystem.rename(tmpPath1, dataPath)
-
-    })
-
-  }
-
-
-  def moveNewlogFiles(outputPath: String, outFiles: Array[FileStatus], loadTime: String): Unit = {
-    var num = 1
-    outFiles.foreach(filestatus => {
-      val srcLocation = filestatus.getPath.toString
-      val destLocation = srcLocation.replace(outputPath + "newlog", outputPath + "data/" + loadTime)
-    })
-
-  }
 
   def downloadFileFromHdfs(fileSystem: FileSystem, hdfsDirLocation: String, localDirLocation: String, suffix: String): Unit = {
     val hdfsPath = new Path(hdfsDirLocation + "/*")
@@ -270,6 +233,7 @@ object FileUtils {
         val out = new FileOutputStream(localPath)
         IOUtils.copyBytes(in, out, 4096, true)
       }
+      null
     })
   }
 
