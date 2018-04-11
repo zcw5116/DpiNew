@@ -1,30 +1,41 @@
 package com.zyuc.dpi.query
 
 import java.text.SimpleDateFormat
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import java.util.Date
+
+import com.alibaba.fastjson.JSONObject
+import com.zyuc.dpi.etl.AccesslogETL.logger
+import com.zyuc.dpi.utils.{CommonUtils, JsonValueNotNullException}
+import org.apache.hadoop.fs.FileSystem
+import org.apache.log4j.Logger
+import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode, SparkSession}
+
 import scala.collection.mutable
 
 /**
   * Created by zhoucw on 上午11:19.
   */
-object AccessLogQeury {
+object AccessOrcLogQuery {
+
+  val logger = Logger.getLogger("accessQuery")
+
   def main(args: Array[String]): Unit = {
     val spark = SparkSession.builder().master("local[2]").appName("test").enableHiveSupport().getOrCreate()
     val sc = spark.sparkContext
 
-    //val hid = sc.getConf.get("spark.app.houseid", "1000")
-    val beginTime = "2017-11-04 20:01:16" //sc.getConf.get("spark.app.begin", "20180326120550")
-    val endTime = "2017-11-04 20:55:50"
-    // sc.getConf.get("spark.app.end", "20180326121455")
-    val hid = 1000
-    val inputPath = "/tmp/output/accesslog1/data/hid=10018"
-    //val accessTable = sc.getConf.get("spark.app.accessTable", "dpi_log_access_m5")
+    val hid = sc.getConf.get("spark.app.houseid", "1000")
+    val beginTime = sc.getConf.get("spark.app.beginTime", "2017-11-04 20:01:16")
+    val endTime = sc.getConf.get("spark.app.endTime", "2017-11-04 20:55:50")
+    val inputPath = sc.getConf.get("spark.app.inputPath", "/tmp/output/accesslog1/data/")
+    val batchid = sc.getConf.get("spark.app.batchid", System.currentTimeMillis().toString)
+    logger.info("batchid:" + batchid)
 
-    val df = getQueryDF(spark, inputPath, beginTime, endTime)
 
-    df.show(false)
-    println(df.count())
+    val df = getQueryDF(spark, inputPath + hid, beginTime, endTime)
+    df.write.format("csv").mode(SaveMode.Overwrite).options(Map("sep"->","))save("/tmp/zhou/" + batchid)
+
   }
+
 
 
   /**
@@ -93,6 +104,7 @@ object AccessLogQeury {
     //   开始和结束的分区以外分区
     // ########################################################################
     val partitionSet = getPartitions(begin, end)
+    logger.info("partitionSet:" + partitionSet)
     partitionSet.foreach(p => {
       if(p!=beginPartition && p!=endPartition){
         val df = loadFilesToDF(spark, inputPath + p)
@@ -114,27 +126,10 @@ object AccessLogQeury {
     } catch {
       case e:Exception => {
         e.printStackTrace()
+        logger.info(e.getMessage)
       }
     }
-    df.coalesce(1)
+    df
   }
 
-
-  def loadDF(spark: SparkSession, resultDF: DataFrame, inputPath: String): DataFrame = {
-    var df: DataFrame = null
-    println(inputPath)
-    try {
-      var partDF = spark.read.format("orc").load(inputPath)
-      if (resultDF != null) {
-        df = resultDF.union(partDF)
-      } else {
-        df = partDF
-      }
-    } catch {
-      case e: Exception => {
-        df = resultDF
-      }
-    }
-   df
-  }
 }

@@ -4,7 +4,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.security.UserGroupInformation;
-
 import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -93,9 +92,7 @@ public class HDFSFileUtils {
             for (File file : files) {
                 fileLocals.add(new Path(file.getAbsolutePath()));
             }
-
             ExecutorService executor = Executors.newFixedThreadPool(threadNum);
-
             for (final Path fileLocal : fileLocals) {
                 executor.execute(new Runnable() {
                     @Override

@@ -2,23 +2,24 @@ package com.zyuc.dpi.etl
 
 import java.text.SimpleDateFormat
 import java.util.Date
-
+import com.alibaba.fastjson.JSONObject
 import com.zyuc.dpi.etl.utils.AccessUtil
-import com.zyuc.dpi.utils.FileUtils
+import com.zyuc.dpi.utils.{CommonUtils, FileUtils, JsonValueNotNullException}
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.log4j.Logger
 import org.apache.spark.sql
 import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
-
 import scala.collection.mutable
 
 /**
   * Created by zhoucw on 下午10:01.
   */
 object AccesslogETL {
+
+  val logger = Logger.getLogger("accessETL")
+
   def main(args: Array[String]): Unit = {
     val spark = new sql.SparkSession.Builder().appName("test_201803151202").master("local[2]").enableHiveSupport().getOrCreate()
-
     val sc = spark.sparkContext
     val sqlContext = spark.sqlContext
 
@@ -33,8 +34,8 @@ object AccesslogETL {
     val fileSystem = FileSystem.get(sc.hadoopConfiguration)
     val loadTime = "2018-03-16 16:00:00"
 
-    doJob(sqlContext, fileSystem, appName, inputPath, outputPath, coalesceSize,
-      loadTime, accessTable, ifRefreshPartiton, tryTime)
+    // doJob(sqlContext, fileSystem, appName, inputPath, outputPath, coalesceSize,
+    //   loadTime, accessTable, ifRefreshPartiton, tryTime)
 
   }
 
@@ -42,23 +43,28 @@ object AccesslogETL {
     *
     * @param parentContext
     * @param fileSystem
-    * @param appName           App名字, 格式:${name}_批次目录, 如 201803221501-g1
-    * @param inputPath
-    * @param outputPath
-    * @param coalesceSize      收敛大小，单位M
-    * @param accessTable       清洗后外部表
-    * @param ifRefreshPartiton 是否刷新分区: 0-不刷新, 1-刷新
-    * @param tryTime           重试次数
+    * @param params
     * @return
     */
   @throws(classOf[Exception])
-  def doJob(parentContext: SQLContext, fileSystem: FileSystem, appName: String,
-            inputPath: String, outputPath: String, coalesceSize: Int, loadTime:String,
-            accessTable: String, ifRefreshPartiton: String, tryTime: Int): String = {
+  def doJob(parentContext: SQLContext, fileSystem: FileSystem, params: JSONObject): String = {
 
-    try{
+    try {
+      var info = ""
+      val appName = CommonUtils.getJsonValueByKey(params, "appName")
+      val inputPath = CommonUtils.getJsonValueByKey(params, "inputPath")
+      val outputPath = CommonUtils.getJsonValueByKey(params, "outputPath")
+      val coalesceSizeStr = CommonUtils.getJsonValueByKey(params, "coalesceSize")
+      val accessTable = CommonUtils.getJsonValueByKey(params, "accessTable")
+      val ifRefreshPartiton = CommonUtils.getJsonValueByKey(params, "ifRefreshPartiton")
+      val tryTimeStr = CommonUtils.getJsonValueByKey(params, "tryTime")
+      val loadTime = CommonUtils.getJsonValueByKey(params, "loadTime")
+
+      val tryTime = tryTimeStr.toInt
+      val coalesceSize = coalesceSizeStr.toInt
+
       var result = "app:" + appName + ", tryTime:" + tryTime
-      val logger = Logger.getLogger("org")
+
       var begin = new Date().getTime
 
       val sqlContext = parentContext.newSession()
@@ -102,12 +108,12 @@ object AccesslogETL {
 
       val sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
       val endTime = sdf.parse(loadTime)
-      val beginTime = sdf.format(endTime.getTime() - 2*60*60*1000)
-      val curHourTime = sdf.format(endTime.getTime() - 1*60*60*1000)
+      val beginTime = sdf.format(endTime.getTime() - 2 * 60 * 60 * 1000)
+      val curHourTime = sdf.format(endTime.getTime() - 1 * 60 * 60 * 1000)
 
-      var resultDF:DataFrame = null
+      var resultDF: DataFrame = null
 
-      fileSystem.globStatus(new Path(inputDoingLocation+"/*")).foreach(p=>{
+      fileSystem.globStatus(new Path(inputDoingLocation + "/*")).foreach(p => {
         val hLoc = p.getPath.toString
         val partitionNum = FileUtils.computePartitionNum(fileSystem, hLoc, coalesceSize)
         logger.info("hLoc:" + hLoc + ", partitionNum:" + partitionNum)
@@ -117,13 +123,13 @@ object AccesslogETL {
         val curHourDF = hDF.filter(s"acctime>='$curHourTime'")
         val preHourDF = hDF.filter(s"acctime>'$beginTime' and acctime<'$curHourTime' ")
 
-        val preHourPartNum = if(partitionNum/3 == 0) 1 else partitionNum/3
+        val preHourPartNum = if (partitionNum / 3 == 0) 1 else partitionNum / 3
 
         val newDF = curHourDF.coalesce(partitionNum).union(preHourDF.coalesce(preHourPartNum))
 
-        if(resultDF != null){
+        if (resultDF != null) {
           resultDF = resultDF.union(newDF)
-        }else{
+        } else {
           resultDF = newDF
         }
       })
@@ -132,7 +138,6 @@ object AccesslogETL {
         .partitionBy(partitions.split(","): _*).save(outputPath + "temp/" + batchID)
       val convertTime = new Date().getTime - begin
       logger.info("[" + appName + "] cost time：" + convertTime)
-
 
 
       begin = new Date().getTime
@@ -149,7 +154,7 @@ object AccesslogETL {
 
 
       val inputDoneLocation = inputPath + "/" + batchID + "_done"
-      val isDoneRenamed =  FileUtils.renameHDFSDir(fileSystem, inputDoingLocation, inputDoneLocation)
+      val isDoneRenamed = FileUtils.renameHDFSDir(fileSystem, inputDoingLocation, inputDoneLocation)
 
       if (!isDoneRenamed) {
         logger.info(s"[$appName] $inputDoingLocation move to $inputDoneLocation failed")
@@ -160,7 +165,7 @@ object AccesslogETL {
 
       // 是否刷新分区
       if (ifRefreshPartiton == "0") {
-        return result + " success ," + "convertTime:#" + convertTime + "#,moveTime:#" + moveTime+"#"
+        return result + " success ," + "convertTime:#" + convertTime + "#,moveTime:#" + moveTime + "#"
       }
 
       begin = new Date().getTime
@@ -196,10 +201,17 @@ object AccesslogETL {
 
       result + " success," + "convertTime:#" + convertTime + "#,moveTime:#" + moveTime + "#,refreshTime:#" + refreshTime
 
-    }catch {
-      case e:Exception =>{
+    } catch {
+      case jsonE:JsonValueNotNullException => {
+        logger.error("[" + params + "]-" + jsonE.getMessage)
+        throw new JsonValueNotNullException("[" + params + "]-" + jsonE.getMessage)
+        null
+      }
+      case e: Exception => {
+        logger.error("[" + params + "]-" + e.getMessage)
         e.printStackTrace()
-        e.getMessage
+        throw new Exception("[" + params + "]-" + e.getMessage)
+        null
       }
     }
 

@@ -3,15 +3,14 @@ package com.zyuc.dpi.service
 /**
   * Created by zhoucw on 17-7-17.
   */
+
 import java.io.OutputStream
 import java.net.InetSocketAddress
-import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.concurrent.Executors
-
 import com.alibaba.fastjson.JSON
 import com.sun.net.httpserver.{Headers, HttpExchange, HttpHandler, HttpServer}
-import com.zyuc.dpi.etl.{AccesslogETL, AccesslogETL2, AccesslogETL3, AccesslogETL4}
+import com.typesafe.config.Config
+import com.zyuc.dpi.utils.ConfigUtil
 import org.apache.hadoop.fs.FileSystem
 import org.apache.spark.sql.SparkSession
 
@@ -19,14 +18,19 @@ object SparkServer {
 
   def main(args: Array[String]) {
 
-    val spark = SparkSession.builder().enableHiveSupport().getOrCreate()
+    val spark = SparkSession.builder().enableHiveSupport().master("local[*]").appName("test").getOrCreate()
     val sc = spark.sparkContext
     val port = sc.getConf.get("spark.server.port", "9999")
+    // 配置文件absolutepath
+    val configFile = sc.getConf.get("spark.app.config", "#")
     val fileSystem = FileSystem.get(sc.hadoopConfiguration)
-    createServer(port.toInt, spark, fileSystem)
+    val config = if (configFile == "#") ConfigUtil.getConfig else ConfigUtil.getConfig(configFile)
+
+    createServer(port.toInt, spark, fileSystem, config)
+
   }
 
-  def createServer(port: Int, spark: SparkSession, fileSystem: FileSystem): Unit = {
+  def createServer(port: Int, spark: SparkSession, fileSystem: FileSystem, config: Config): Unit = {
 
     val httpServer = HttpServer.create(new InetSocketAddress(port), 30)
     httpServer.setExecutor(Executors.newCachedThreadPool())
@@ -42,98 +46,21 @@ object SparkServer {
         val data = new Array[Byte](contentLength)
         val length = inputStream.read(data)
         System.out.println("data:" + new String(data))
-        val Params = JSON.parseObject(new String(data))
-        val serverLine = Params.getString("serverLine")
-        println("serverLine:" + serverLine)
+        val params = JSON.parseObject(new String(data))
         val responseHeaders: Headers = httpExchange.getResponseHeaders
-
         responseHeaders.set("Content-Type", "text/html;charset=utf-8")
 
         var serverInfo = ""
-        // 调用SparkSQL的方法进行测试
+
         try {
-          if (serverLine == "test") {
-            spark.newSession().read.format("json").load("/hadoop/zcw/tmp/zips.json").show
-          }else if(serverLine == "accessM5ETL"){
-            val sqlContext = spark.sqlContext
-            sqlContext.sql("use dpi")
-            val appName = Params.getString("appName")
-            val inputPath = Params.getString("inputPath")
-            val outputPath = Params.getString("outputPath")
-            val coalesceSize = Params.getString("coalesceSize").toInt
-            val accessTable = Params.getString("accessTable")
-            val ifRefreshPartiton = Params.getString("ifRefreshPartiton")
-            val tryTime = Params.getString("tryTime").toInt
-            serverInfo = "服务异常"
-            val sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
-            val begin = new Date().getTime
-            serverInfo = AccesslogETL.doJob(sqlContext, fileSystem, appName, inputPath,
-              outputPath, coalesceSize, accessTable, ifRefreshPartiton, tryTime)
-            val end = new Date().getTime
-            serverInfo = serverInfo + "s=" + sdf.format(begin) + "=e=" + sdf.format(end) + "=t=" + (end - begin)+ "="
-          }else if(serverLine == "accessM5ETL2"){
-            val sqlContext = spark.sqlContext
-            sqlContext.sql("use dpi")
-            val appName = Params.getString("appName")
-            val inputPath = Params.getString("inputPath")
-            val outputPath = Params.getString("outputPath")
-            val coalesceSize = Params.getString("coalesceSize").toInt
-            val accessTable = Params.getString("accessTable")
-            val ifRefreshPartiton = Params.getString("ifRefreshPartiton")
-            val tryTime = Params.getString("tryTime").toInt
-            val loadTime = Params.getString("loadTime")
-            serverInfo = "服务异常"
-            val sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
-            val begin = new Date().getTime
-            serverInfo = AccesslogETL2.doJob(sqlContext, fileSystem, appName, inputPath,
-              outputPath, coalesceSize, loadTime, accessTable, ifRefreshPartiton, tryTime)
-            val end = new Date().getTime
-            serverInfo = serverInfo + "s=" + sdf.format(begin) + "=e=" + sdf.format(end) + "=t=" + (end - begin)+ "="
-          }else if(serverLine == "accessM5ETL3"){
-            spark.sql("use dpi")
-            val appName = Params.getString("appName")
-            val inputPath = Params.getString("inputPath")
-            val outputPath = Params.getString("outputPath")
-            val coalesceSize = Params.getString("coalesceSize").toInt
-            val accessTable = Params.getString("accessTable")
-            val ifRefreshPartiton = Params.getString("ifRefreshPartiton")
-            val tryTime = Params.getString("tryTime").toInt
-            serverInfo = "服务异常"
-            val sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
-            val begin = new Date().getTime
-            serverInfo = AccesslogETL3.doJob(spark, fileSystem, appName, inputPath,
-              outputPath, coalesceSize, accessTable, ifRefreshPartiton, tryTime)
-            val end = new Date().getTime
-            serverInfo = serverInfo + "s=" + sdf.format(begin) + "=e=" + sdf.format(end) + "=t=" + (end - begin)+ "="
-          }else if(serverLine == "accessM5ETL4"){
-            val sqlContext = spark.sqlContext
-            sqlContext.sql("use dpi")
-            val appName = Params.getString("appName")
-            val inputPath = Params.getString("inputPath")
-            val outputPath = Params.getString("outputPath")
-            val coalesceSize = Params.getString("coalesceSize").toInt
-            val accessTable = Params.getString("accessTable")
-            val ifRefreshPartiton = Params.getString("ifRefreshPartiton")
-            val tryTime = Params.getString("tryTime").toInt
-            val loadTime = Params.getString("loadTime")
-            serverInfo = "服务异常"
-            val sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
-            val begin = new Date().getTime
-            serverInfo = AccesslogETL4.doJob(sqlContext, fileSystem, appName, inputPath,
-              outputPath, coalesceSize, loadTime, accessTable, ifRefreshPartiton, tryTime)
-            val end = new Date().getTime
-            serverInfo = serverInfo + "s=" + sdf.format(begin) + "=e=" + sdf.format(end) + "=t=" + (end - begin)+ "="
-          }
-          else {
-            System.out.println("go")
-          }
-        }catch {
+          serverInfo = ServerLine.access(spark, fileSystem, config, params)
+        } catch {
           case e: Exception =>
             e.printStackTrace()
             response = "失败"
             httpCode = 500
         }
-
+        println("serverInfo:" + serverInfo)
         response = "HttpServerStatus: " + response + "" + serverInfo
 
         httpExchange.sendResponseHeaders(httpCode, response.getBytes.length)
@@ -142,59 +69,58 @@ object SparkServer {
         responseBody.flush
         responseBody.close
       }
-
-      httpServer.createContext("/ping", new HttpHandler() {
-        override def handle(httpExchange: HttpExchange): Unit = {
-          var response = "存活"
-          var httpCode = 200
-
-          try {
-            if (spark.sparkContext.isStopped) {
-              httpCode = 400
-              response = "spark终止"
-            }
-          } catch {
-            case e: Exception =>
-              httpCode = 500
-              response = "服务异常"
-          } finally {
-            httpExchange.sendResponseHeaders(httpCode, response.getBytes().length)
-            val out = httpExchange.getResponseBody //获得输出流
-            out.write(response.getBytes())
-            out.flush()
-            httpExchange.close()
-          }
-        }
-      })
-
-
-      /**
-        * 停止sc测试
-        */
-      httpServer.createContext("/stop_sc", new HttpHandler() {
-        override def handle(httpExchange: HttpExchange): Unit = {
-          var response = "成功"
-          var httpCode = 200
-
-          try {
-            spark.sparkContext.stop()
-          } catch {
-            case e: Exception =>
-              httpCode = 500
-              response = "服务异常"
-          } finally {
-            httpExchange.sendResponseHeaders(httpCode, response.getBytes().length)
-            val out = httpExchange.getResponseBody //获得输出流
-
-            out.write(response.getBytes())
-            out.flush()
-            httpExchange.close()
-          }
-        }
-      })
-
-      httpServer.start()
-      println("SparkServer started " + port + " ......")
     })
+
+    httpServer.createContext("/ping", new HttpHandler() {
+      override def handle(httpExchange: HttpExchange): Unit = {
+        var response = "存活"
+        var httpCode = 200
+
+        try {
+          if (spark.sparkContext.isStopped) {
+            httpCode = 400
+            response = "spark终止"
+          }
+        } catch {
+          case e: Exception =>
+            httpCode = 500
+            response = "服务异常"
+        } finally {
+          httpExchange.sendResponseHeaders(httpCode, response.getBytes().length)
+          val out = httpExchange.getResponseBody //获得输出流
+          out.write(response.getBytes())
+          out.flush()
+          httpExchange.close()
+        }
+      }
+    })
+
+    /**
+      * 停止sc测试
+      */
+    httpServer.createContext("/stop_sc", new HttpHandler() {
+      override def handle(httpExchange: HttpExchange): Unit = {
+        var response = "成功"
+        var httpCode = 200
+
+        try {
+          spark.sparkContext.stop()
+        } catch {
+          case e: Exception =>
+            httpCode = 500
+            response = "服务异常"
+        } finally {
+          httpExchange.sendResponseHeaders(httpCode, response.getBytes().length)
+          val out = httpExchange.getResponseBody //获得输出流
+
+          out.write(response.getBytes())
+          out.flush()
+          httpExchange.close()
+        }
+      }
+    })
+
+    httpServer.start()
+    println("SparkServer started " + port + " ......")
   }
 }
