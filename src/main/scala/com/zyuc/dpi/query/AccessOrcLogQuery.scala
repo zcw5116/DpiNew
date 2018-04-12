@@ -1,14 +1,8 @@
 package com.zyuc.dpi.query
 
 import java.text.SimpleDateFormat
-import java.util.Date
-
-import com.alibaba.fastjson.JSONObject
-import com.zyuc.dpi.etl.AccesslogETL.logger
-import com.zyuc.dpi.utils.{CommonUtils, JsonValueNotNullException}
-import org.apache.hadoop.fs.FileSystem
 import org.apache.log4j.Logger
-import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode, SparkSession}
+import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 
 import scala.collection.mutable
 
