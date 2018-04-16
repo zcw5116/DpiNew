@@ -106,10 +106,11 @@ object AccesslogETL {
         logger.info(s"[$appName] $inputLocation move to $inputDoingLocation success")
       }
 
-      val sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
-      val endTime = sdf.parse(loadTime)
-      val beginTime = sdf.format(endTime.getTime() - 2 * 60 * 60 * 1000)
-      val curHourTime = sdf.format(endTime.getTime() - 1 * 60 * 60 * 1000)
+      val sdf = new SimpleDateFormat("yyyyMMddHHmm")
+      val curTime = sdf.parse(loadTime)
+      val targetSdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+      val pre2HourTime = targetSdf.format(curTime.getTime() - 2 * 60 * 60 * 1000)
+      val pre1HourTime = targetSdf.format(curTime.getTime() - 1 * 60 * 60 * 1000)
 
       var resultDF: DataFrame = null
 
@@ -120,8 +121,8 @@ object AccesslogETL {
         val hRowRdd = sqlContext.sparkContext.textFile(hLoc).
           map(x => AccessUtil.parse(x)).filter(_.length != 1)
         val hDF = sqlContext.createDataFrame(hRowRdd, AccessUtil.struct)
-        val curHourDF = hDF.filter(s"acctime>='$curHourTime'")
-        val preHourDF = hDF.filter(s"acctime>'$beginTime' and acctime<'$curHourTime' ")
+        val curHourDF = hDF.filter(s"acctime>='$pre1HourTime'")
+        val preHourDF = hDF.filter(s"acctime>'$pre2HourTime' and acctime<'$pre1HourTime' ")
 
         val preHourPartNum = if (partitionNum / 3 == 0) 1 else partitionNum / 3
 

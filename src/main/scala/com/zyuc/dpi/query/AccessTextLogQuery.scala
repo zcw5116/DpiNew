@@ -1,16 +1,8 @@
 package com.zyuc.dpi.query
 
 import java.text.SimpleDateFormat
-import java.util.Date
-
-import com.alibaba.fastjson.JSONObject
-import com.zyuc.dpi.utils.{CommonUtils, JsonValueNotNullException}
-import org.apache.hadoop.fs.FileSystem
 import org.apache.log4j.Logger
-import org.apache.spark.SparkContext
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
-
-import scala.collection.mutable
 
 /**
   * Created by zhoucw on 上午11:19.

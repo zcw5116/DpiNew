@@ -75,7 +75,6 @@ object SparkServer {
       override def handle(httpExchange: HttpExchange): Unit = {
         var response = "存活"
         var httpCode = 200
-
         try {
           if (spark.sparkContext.isStopped) {
             httpCode = 400

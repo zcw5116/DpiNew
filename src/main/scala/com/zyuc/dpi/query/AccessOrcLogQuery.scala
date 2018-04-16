@@ -24,7 +24,6 @@ object AccessOrcLogQuery {
     val batchid = sc.getConf.get("spark.app.batchid", System.currentTimeMillis().toString)
     logger.info("batchid:" + batchid)
 
-
     val df = getQueryDF(spark, inputPath + hid, beginTime, endTime)
     df.write.format("csv").mode(SaveMode.Overwrite).options(Map("sep"->","))save("/tmp/zhou/" + batchid)
 
@@ -87,7 +86,11 @@ object AccessOrcLogQuery {
     val beginDF = loadFilesToDF(spark, inputPath + beginPartition)
     val endDF = loadFilesToDF(spark, inputPath + endPartition)
     if(beginDF != null && endDF != null){
-      resultDF = beginDF.filter(s"acctime>='$beginTime'").union(endDF.filter(s"acctime<='$endTime'"))
+      if(beginPartition == endPartition){
+        resultDF = beginDF.filter(s"acctime>='$beginTime' and acctime<='$endTime'")
+      }else{
+        resultDF = beginDF.filter(s"acctime>='$beginTime'").union(endDF.filter(s"acctime<='$endTime'"))
+      }
     }else if(beginDF != null){
       resultDF = beginDF.filter(s"acctime>='$beginTime'")
     }else if(endDF != null){
