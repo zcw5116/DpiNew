@@ -22,13 +22,15 @@ object CoalesceETL {
     val childPath = sc.getConf.get("spark.app.childPath")
     val mergePath = sc.getConf.get("spark.app.mergePath")
     val partitionSize = sc.getConf.get("spark.app.partitionSize","50").toInt
+    val fileSizeLess = sc.getConf.get("spark.app.fileSizeLess","50")
+    val fileSize = (fileSizeLess.toInt)*1000000
     val fileSystem = FileSystem.get(sc.hadoopConfiguration)
 
-    mergeFiles(sqlContext, fileSystem, dataTime, inputPath, childPath, mergePath,partitionSize)
+    mergeFiles(sqlContext, fileSystem, dataTime, inputPath, childPath, mergePath,partitionSize,fileSize)
 
   }
   def mergeFiles(parentContext:SQLContext, fileSystem:FileSystem, batchTime:String, inputPath:String,
-                 childPath:String, mergePath:String,partitionSize:Int): String ={
+                 childPath:String, mergePath:String,partitionSize:Int,fileSize:Int): String ={
     val sqlContext = parentContext.newSession()
     val srcDataPath = inputPath + childPath
     val litterFilePath = inputPath + "/litterFile" + childPath
@@ -43,7 +45,7 @@ object CoalesceETL {
     try{
       fileSystem.globStatus(new Path(srcDataPath + "/*")).foreach(x=>{
         //取文件大小小于50M的
-        if(x.getLen < 50000000){
+        if(x.getLen < fileSize){
           filesizesmallSet += (x.getPath.toString)
         }
       })
