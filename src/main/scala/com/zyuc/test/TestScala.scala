@@ -3,6 +3,10 @@ package com.zyuc.test
 import java.text.SimpleDateFormat
 import java.util.Base64
 
+import org.apache.spark.sql.functions.udf
+
+import scala.util.matching.Regex
+
 /**
   * Created by zhoucw on 下午3:40.
   */
@@ -16,6 +20,8 @@ object TestScala {
 
     val b64Url = Base64.getEncoder.encodeToString("http://d.tclapp.huan.tv/201804151902/6f3fb447588929761edfc20ba83e5bfe/appstore/resources/2014/09/05/cdd8b4947add4de1983caa59e583a20b/TCL/app_1520414707843.apk".getBytes())
     println("b64Url:" + b64Url)
+
+
 
   }
 }

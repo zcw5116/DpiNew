@@ -14,6 +14,7 @@ import scala.collection.mutable
 
 /**
   * Created by zhoucw on 下午10:01.
+  * @deprecated
   */
 object AccesslogETL4 {
   def main(args: Array[String]): Unit = {
