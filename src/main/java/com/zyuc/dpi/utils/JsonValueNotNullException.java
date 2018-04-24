@@ -5,6 +5,7 @@ package com.zyuc.dpi.utils;
  */
 public class JsonValueNotNullException extends Exception {
     public JsonValueNotNullException(String msg) {
+
         super(msg);
     }
 }

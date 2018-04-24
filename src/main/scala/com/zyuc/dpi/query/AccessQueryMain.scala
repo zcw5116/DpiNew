@@ -1,7 +1,8 @@
 package com.zyuc.dpi.query
 
 import java.text.SimpleDateFormat
-import java.util.Date
+import java.util.{Base64, Date}
+
 import com.alibaba.fastjson.JSONObject
 import com.zyuc.dpi.utils.{CommonUtils, JsonValueNotNullException}
 import org.apache.hadoop.fs.FileSystem
@@ -29,6 +30,9 @@ object AccessQueryMain {
       val inputTextPath = CommonUtils.getJsonValueByKey(params, "inputTextPath")
       val recordsNumPerPartiton = CommonUtils.getJsonValueByKey(params, "recordsNumPerPartiton")
       val textQueryType = CommonUtils.getJsonValueByKey(params, "textQueryType")
+      val domain =  CommonUtils.getJsonValueByKey(params, "domain")
+      val url = CommonUtils.getJsonValueByKey(params, "url")
+      val partitionNumStr = CommonUtils.getJsonValueByKey(params, "partitionNum")
 
       val sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
       val beginUnix = (sdf.parse(beginTime).getTime / 1000).toString
@@ -36,24 +40,35 @@ object AccessQueryMain {
 
       logger.info("Orc query start..")
       var begin = new Date().getTime
-      val ordDF = AccessOrcLogQuery.getQueryDF(spark, inputOrcPath, beginTime, endTime)
-      val orcCount = ordDF.count()
-      val partitionNum = if(orcCount/recordsNumPerPartiton.toInt == 0 ) 1 else orcCount/recordsNumPerPartiton.toInt
-      ordDF.repartition(partitionNum.toInt).write.format("csv").mode(SaveMode.Overwrite).options(Map("sep" -> ",")).save("/tmp/zhou/" + batchid + "/orc")
+      var orcSrcDF = AccessOrcLogQuery.getQueryDF(spark, inputOrcPath, beginTime, endTime)
+      if(url != "#"){
+        val b64Url = Base64.getEncoder.encodeToString(url.getBytes())
+        orcSrcDF = orcSrcDF.filter(s"url='$b64Url'")
+      }
+
+      if(domain != "#") {
+        orcSrcDF = orcSrcDF.filter(s"domain='$domain'")
+      }
+      val partitionNum = partitionNumStr.toInt
+      val orcDF = orcSrcDF.repartition(partitionNum)
+      val savePath = "/tmp/zhou/" + batchid + "/orc"
+      orcDF.write.format("csv").mode(SaveMode.Overwrite).options(Map("sep" -> ",")).save(savePath)
+      val orcCount = spark.read.format("text").load(savePath).count()  //orcDF.count()
+      //val partitionNum = if(orcCount/recordsNumPerPartiton.toInt == 0 ) 1 else orcCount/recordsNumPerPartiton.toInt
       var costTime = new Date().getTime - begin
       info = "#" + batchid + "#" + hid + "#queryS:" + beginTime + "#queryE:" +
         endTime + "#" + "orcTime:" + costTime + "#" + "orcCount:" + orcCount + "#"
       logger.info("Orc query end..")
 
-      if(textQueryType == "count"){
-        logger.info("Text count query start..")
+      if(textQueryType == "text"){
+        logger.info("text query start..")
         begin = new Date().getTime
         val textDF = AccessTextLogQuery.getQueryDF(spark, inputTextPath, beginUnix, endUnix)
-        textDF.repartition(partitionNum.toInt).write.format("csv").mode(SaveMode.Overwrite).options(Map("sep" -> ",")).save("/tmp/zhou/" + batchid + "/text")
+        textDF.coalesce(partitionNum.toInt).repartition(partitionNum.toInt).write.format("csv").mode(SaveMode.Overwrite).options(Map("sep" -> ",")).save("/tmp/zhou/" + batchid + "/text")
         val textCount = textDF.count()
         costTime = new Date().getTime - begin
         info = info + "textTime:" + costTime + "#" + "textCount:" + textCount + "#"
-        logger.info("Text count query end..")
+        logger.info("text query end..")
       }else if(textQueryType == "performance"){
         logger.info("Text performance query start..")
         begin = new Date().getTime

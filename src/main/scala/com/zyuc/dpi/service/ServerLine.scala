@@ -25,8 +25,6 @@ object ServerLine {
 
       val sqlContext = spark.sqlContext
       val hiveDb = config.getString("hadoopCfg.hivedb")
-      sqlContext.sql("use " + hiveDb)
-
 
       val sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
       val begin = new Date().getTime
@@ -37,7 +35,7 @@ object ServerLine {
 
       } else if (serverLine == "accessM5ETL") {
 
-        serverInfo = AccesslogETL.doJob(sqlContext, fileSystem, params)
+        serverInfo = AccesslogETL.doJob(sqlContext, fileSystem, hiveDb, params)
 
       } else if (serverLine == "accessQuery") {
 

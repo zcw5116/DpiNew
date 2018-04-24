@@ -47,7 +47,7 @@ object AccesslogETL {
     * @return
     */
   @throws(classOf[Exception])
-  def doJob(parentContext: SQLContext, fileSystem: FileSystem, params: JSONObject): String = {
+  def doJob(parentContext: SQLContext, fileSystem: FileSystem, hiveDb:String, params: JSONObject): String = {
 
     try {
       var info = ""
@@ -68,6 +68,7 @@ object AccesslogETL {
       var begin = new Date().getTime
 
       val sqlContext = parentContext.newSession()
+      sqlContext.sql("use " + hiveDb)
 
       val batchID = appName.substring(appName.lastIndexOf("_") + 1)
 
@@ -134,6 +135,7 @@ object AccesslogETL {
           resultDF = newDF
         }
       })
+
 
       resultDF.write.mode(SaveMode.Overwrite).format("orc")
         .partitionBy(partitions.split(","): _*).save(outputPath + "temp/" + batchID)
