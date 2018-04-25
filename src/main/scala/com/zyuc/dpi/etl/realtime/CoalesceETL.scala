@@ -7,7 +7,7 @@ import org.apache.spark.sql.{SQLContext, SaveMode, SparkSession}
 import scala.collection.mutable
 
 /**
-  * Created by hadoop on 18-4-19.
+  * Created by liuzk on 18-4-19.
   */
 object CoalesceETL {
   def main(args: Array[String]): Unit = {
@@ -23,7 +23,7 @@ object CoalesceETL {
     val mergePath = sc.getConf.get("spark.app.mergePath")
     val partitionSize = sc.getConf.get("spark.app.partitionSize","50").toInt
     val fileSizeLess = sc.getConf.get("spark.app.fileSizeLess","50")
-    val fileSize = (fileSizeLess.toInt)*1000000
+    val fileSize = (fileSizeLess.toInt)*1024*1024
     val fileSystem = FileSystem.get(sc.hadoopConfiguration)
 
     mergeFiles(sqlContext, fileSystem, dataTime, inputPath, childPath, mergePath,partitionSize,fileSize)
