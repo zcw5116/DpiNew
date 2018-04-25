@@ -67,6 +67,8 @@ object AccessUtil {
         }
       }
 
+      val domain = arr(6).trim
+
       var url = arr(7)
       var isbase = "1"
       try {
@@ -77,7 +79,7 @@ object AccessUtil {
           isbase = "0"
         }
       }
-      Row(houseid, arr(1), arr(2), arr(3), arr(4), arr(5), arr(6), url, isbase, arr(8), timeTuple._1, timeTuple._2, timeTuple._3, timeTuple._4)
+      Row(houseid, arr(1), arr(2), arr(3), arr(4), arr(5), domain, url, isbase, arr(8), timeTuple._1, timeTuple._2, timeTuple._3, timeTuple._4)
     } catch {
       case e: Exception => {
         val houseid = -1
