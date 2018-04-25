@@ -19,7 +19,7 @@ object RepartitionETL {
     val inputPath = sc.getConf.get("spark.app.inputPath")
     val childPath = sc.getConf.get("spark.app.childPath")
     val mergePath = sc.getConf.get("spark.app.mergePath")
-    val partitionSize = sc.getConf.get("spark.app.partitionSize").toInt
+    val partitionSize = sc.getConf.get("spark.app.partitionSize","100").toInt
     val fileSystem = FileSystem.get(sc.hadoopConfiguration)
 
     mergeFiles(sqlContext, fileSystem, dataTime, inputPath, childPath, mergePath,partitionSize)
