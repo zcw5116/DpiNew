@@ -76,7 +76,7 @@ object AccessLogStatDay {
 				val sql = getSqlMap(tabName)
 				
 				spark.sql(sql).repartition(10).write.mode(SaveMode.Overwrite)
-					.format("csv").options(Map("header" -> "true"))
+					.format("csv").options(Map("sep" -> "\\t"))
 					.save(outputLocation)
 			}
 			else {
