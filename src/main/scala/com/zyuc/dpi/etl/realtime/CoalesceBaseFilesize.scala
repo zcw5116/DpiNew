@@ -9,7 +9,7 @@ import scala.collection.mutable
 /**
   * Created by liuzk on 18-4-19.
   */
-object CoalesceETest {
+object CoalesceBaseFilesize {
   def main(args: Array[String]): Unit = {
     //val spark = SparkSession.builder().enableHiveSupport().appName("name_20180418").master("local[3]").getOrCreate()
     val spark = SparkSession.builder().enableHiveSupport().getOrCreate()
