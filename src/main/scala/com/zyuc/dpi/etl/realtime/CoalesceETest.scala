@@ -18,19 +18,17 @@ object CoalesceETest {
 
     val appName = sc.getConf.get("spark.app.name")
     val dataTime = appName.substring(appName.lastIndexOf("_") + 1)
-    val inputPath = sc.getConf.get("spark.app.inputPath","/tmp")
-    val childPath = sc.getConf.get("spark.app.childPath","/tmp")
-    val mergePath = sc.getConf.get("spark.app.mergePath","/tmp/tmpMerge")
+    val inputPath = sc.getConf.get("spark.app.inputPath")
+    val childPath = sc.getConf.get("spark.app.childPath")
+    val mergePath = sc.getConf.get("spark.app.mergePath")
     val partitionSize = sc.getConf.get("spark.app.partitionSize","50").toInt
-    val fileSizeLess = sc.getConf.get("spark.app.fileSizeLess","50")
-    val fileSize = (fileSizeLess.toInt)*1024*1024
     val fileSystem = FileSystem.get(sc.hadoopConfiguration)
 
-    mergeFiles(sqlContext, fileSystem, dataTime, inputPath, childPath, mergePath,partitionSize,fileSize)
+    mergeFiles(sqlContext, fileSystem, dataTime, inputPath, childPath, mergePath,partitionSize)
 
   }
   def mergeFiles(parentContext:SQLContext, fileSystem:FileSystem, batchTime:String, inputPath:String,
-                 childPath:String, mergePath:String,partitionSize:Int,fileSize:Int): String ={
+                 childPath:String, mergePath:String,partitionSize:Int): String ={
     val sqlContext = parentContext.newSession()
     val srcDataPath = inputPath + childPath
 
@@ -57,7 +55,7 @@ object CoalesceETest {
 
     try{
       fileSystem.globStatus(new Path(srcDataPath + "/*")).foreach(x=>{
-        //取文件大小小于50M的
+        //按文件大小存入相应set
         if(x.getLen > 42*1024*1024 && x.getLen <= 64*1024*1024){
           sum64To42 += 1
           fileSizesLess64Set += x.getPath.toString
@@ -74,29 +72,24 @@ object CoalesceETest {
       if(sum64To42 > 1 && sum64To42 % 2==0){
         coalNum = sum64To42/2
         setToDir(fileSizesLess64Set,fileSizeLess64Path,mergeSrc64Path,mergeData64Path,coalNum,srcDataPath,batchTime)
-        println("aaaaaa64-1")
       }
       if(sum64To42 > 2 && sum64To42 % 2==1){
         coalNum = sum64To42/2 + 1
         setToDir(fileSizesLess64Set,fileSizeLess64Path,mergeSrc64Path,mergeData64Path,coalNum,srcDataPath,batchTime)
-        println("aaaaaa64-2")
       }
       //文件大小42~25
       if(sum42To25 > 1 && sum42To25 <= 3){
         coalNum = 1
         setToDir(fileSizesLess42Set,fileSizeLess42Path,mergeSrc42Path,mergeData42Path,coalNum,srcDataPath,batchTime)
-        println("aaaaaa42-1")
       }
       if(sum42To25 > 3){
         coalNum = sum64To42/3 + 1
         setToDir(fileSizesLess42Set,fileSizeLess42Path,mergeSrc42Path,mergeData42Path,coalNum,srcDataPath,batchTime)
-        println("aaaaaa42-2")
       }
       //文件大小 < 25
       if(sumLess25 > 1){
         coalNum = 1
         setToDir(fileSizesLess25Set,fileSizeLess25Path,mergeSrc25Path,mergeData25Path,coalNum,srcDataPath,batchTime)
-        println("aaaaaa25")
       }
 
 
@@ -109,10 +102,9 @@ object CoalesceETest {
 
     def setToDir(set: mutable.HashSet[String],fileSizeLessNumPath:String,mergeSrcNumPath:String,
                  mergeDataNumPath:String,coalNum:Int,srcDataPath:String,batchTime:String) : Unit = {
+      //遍历set , 写入临时目录
       set.foreach(f => {
-
-        println(f)
-
+        //println(f)
         val fileName = f.substring(f.lastIndexOf("/") + 1)
         val fromPath = new Path(f)
 
@@ -121,7 +113,7 @@ object CoalesceETest {
         val newFileName = batchTime + "_" + num + fileSuffix
 
         destLocation = destLocation.substring(0, destLocation.lastIndexOf("/") + 1) + newFileName
-        num = num + 1
+          num = num + 1
         val destPath = new Path(destLocation)
 
         if (!fileSystem.exists(destPath.getParent)) {
