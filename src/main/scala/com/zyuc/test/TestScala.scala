@@ -18,10 +18,12 @@ object TestScala {
     val beginUnix = (sdf.parse(loadTime).getTime / 1000).toString
     println(beginUnix)
 
-    val b64Url = Base64.getEncoder.encodeToString("http://d.tclapp.huan.tv/201804151902/6f3fb447588929761edfc20ba83e5bfe/appstore/resources/2014/09/05/cdd8b4947add4de1983caa59e583a20b/TCL/app_1520414707843.apk".getBytes())
+    var b64Url = Base64.getEncoder.encodeToString("http://d.tclapp.huan.tv/201804151902/6f3fb447588929761edfc20ba83e5bfe/appstore/resources/2014/09/05/cdd8b4947add4de1983caa59e583a20b/TCL/app_1520414707843.apk".getBytes())
     println("b64Url:" + b64Url)
 
-
+    b64Url = Base64.getEncoder.encodeToString("".getBytes())
+    val url = Base64.getDecoder.decode(b64Url)
+    println("url:" + new String(url))
 
   }
 }

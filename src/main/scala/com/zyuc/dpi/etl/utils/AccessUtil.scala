@@ -5,6 +5,8 @@ import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.{IntegerType, StringType, StructField, StructType}
 import java.util.Base64
 
+import com.zyuc.dpi.utils.ConfigUtil
+
 /**
   * Created on 上午3:16.
   */
@@ -20,7 +22,7 @@ object AccessUtil {
     StructField("destport", StringType),
     StructField("domain", StringType),
     StructField("url", StringType),
-    StructField("isbase", StringType),
+    //StructField("isbase", StringType),
     StructField("duration", StringType),
     StructField("acctime", StringType),
 
@@ -79,22 +81,39 @@ object AccessUtil {
           isbase = "0"
         }
       }
-      Row(houseid, arr(1), arr(2), arr(3), arr(4), arr(5), domain, url, isbase, arr(8), timeTuple._1, timeTuple._2, timeTuple._3, timeTuple._4)
+      Row(houseid, arr(1), arr(2), arr(3), arr(4), arr(5), domain, url, arr(8), timeTuple._1, timeTuple._2, timeTuple._3, timeTuple._4)
     } catch {
       case e: Exception => {
         val houseid = -1
-        Row(houseid, line, "-1", "-1", "-1", "-1", "-1", "-1", "-1", "-1", "-1", "-1", "-1", "-1")
+        Row(houseid, line, "-1", "-1", "-1", "-1", "-1", "-1", "-1","-1", "-1", "-1", "-1")
       }
     }
   }
 
+  def getPartitionSize(hid:String):Int = {
+    val config = ConfigUtil.getConfig("/home/slview/bigdata/app/spark/server/config/partition.conf")
+    var partitionSize = config.getString("partitionSize.0")
+    try{
+      partitionSize = config.getString("partitionSize." + hid)
+    }catch {
+      case e:Exception => {
+        //e.printStackTrace()
+      }
+    }
+    partitionSize.toInt
+  }
+
   def main(args: Array[String]): Unit = {
-    println(getTime("1521172762"))
+   // println(getTime("1521172762"))/hadoop/.m2/repository/com/typesafe/config/1.2.1/config-1.2.1.jar
 
 
-    val asBytes = Base64.getDecoder.decode("aHR0cDovL2J4ZnNmcy5zeGwubWUvdGVtcC9iM2Y2NDM1YmQzNjc4MzRhMzUwNGE5YzYxMDdmMmRjYS5waHA/bT0x")
+   // val asBytes = Base64.getDecoder.decode("aHR0cDovL2J4ZnNmcy5zeGwubWUvdGVtcC9iM2Y2NDM1YmQzNjc4MzRhMzUwNGE5YzYxMDdmMmRjYS5waHA/bT0x")
 
-    System.out.println(new String(asBytes, "utf-8"))
+   // System.out.println(new String(asBytes, "utf-8"))
+    val hLoc = "hdfs://cdh-nn-001:8020/hadoop/accesslog/201805101005_doing/1005"
+    val hid = hLoc.substring(hLoc.lastIndexOf("/" )+ 1)
+    println(hid)
+    println(getPartitionSize(hid))
   }
 
 }

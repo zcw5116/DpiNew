@@ -117,7 +117,8 @@ object AccesslogETL {
 
       fileSystem.globStatus(new Path(inputDoingLocation + "/*")).foreach(p => {
         val hLoc = p.getPath.toString
-        val partitionNum = FileUtils.computePartitionNum(fileSystem, hLoc, coalesceSize)
+        val partitionSize = AccessUtil.getPartitionSize(hLoc.substring(hLoc.lastIndexOf("/" )+ 1))
+        val partitionNum = FileUtils.computePartitionNum(fileSystem, hLoc, partitionSize)
         logger.info("hLoc:" + hLoc + ", partitionNum:" + partitionNum)
         val hRowRdd = sqlContext.sparkContext.textFile(hLoc).
           map(x => AccessUtil.parse(x)).filter(_.length != 1)

@@ -8,7 +8,8 @@ import org.apache.spark.sql.functions.udf
   */
 object AccessLogStatHour {
   def main(args: Array[String]): Unit = {
-    val spark = SparkSession.builder().enableHiveSupport().appName("AccessLogStatHour").master("local[*]").getOrCreate()
+    // val spark = SparkSession.builder().enableHiveSupport().appName("AccessLogStatHour").master("local[*]").getOrCreate()
+    val spark = SparkSession.builder().enableHiveSupport().getOrCreate()
 
     //#############################################
     //  参数接收
@@ -19,7 +20,7 @@ object AccessLogStatHour {
     val hourtime = sc.getConf.get("spark.app.hourtime", "2018042408")
     val houseIpPath = sc.getConf.get("spark.app.houseIpPath", "/hadoop/idcipseginfo/1019.ip")
     val outputParentPath = sc.getConf.get("spark.app.outputParentPath", "/hadoop/accesslog_stat/hour/out")
-
+    val topDomainInfoFile = sc.getConf.get("spark.app.topDomainInfoFile", "/hadoop/basic/domainInfo.txt")
 
     /*    // spark sql 使用正则表达式有bug, 使用自定义的udf，正则表达式参考原pig程序
         val udf_isDomain = udf({
@@ -39,7 +40,7 @@ object AccessLogStatHour {
     //#############################################
     //   广播域名基础数据
     //#############################################
-    val domainInfo = sc.textFile("/hadoop/basic/domainInfo.txt").
+    val domainInfo = sc.textFile(topDomainInfoFile).
       map(x => x.split("\\t")).filter(_.length == 3).map(x => (x(0), x(1)))
     val inDomain = domainInfo.filter(_._1 == "in").map(_._2).collect()
     val areaDomain = domainInfo.filter(_._1 == "area").map(_._2).collect()
@@ -110,7 +111,7 @@ object AccessLogStatHour {
     // 增加是否合法域名的判断
     //dataDF.withColumn("isdomain", udf_isDomain(dataDF.col("domain"))).createOrReplaceTempView(accessTable)
     dataDF.createOrReplaceTempView(accessTable)
-    dataDF.printSchema()
+
 
     //#############################################
     // 广播IP地址表数据：缓存IP地址信息
@@ -140,8 +141,7 @@ object AccessLogStatHour {
 
     val accessAndIpTable = "accessAndIp"
     spark.sql(accessAndIpSql).createOrReplaceTempView(accessAndIpTable)
-
-
+   // spark.sql(accessAndIpSql).show()
     //#############################################
     //   1. 违法访问日志： 过滤不规范的域名
     //#############################################
@@ -167,29 +167,32 @@ object AccessLogStatHour {
        |from ${accessAndIpTable}
        |where iflegal=1
        |group by destip, destport, proctype
-       |order by times desc
        """.stripMargin
     val ipPortPath = outputParentPath + "/ipport/hid=" + hid + "/d=" + d + "/h=" + h
     spark.sql(accessIpPortSql).repartition(10).write.mode(SaveMode.Overwrite).format("orc").save(ipPortPath)
-
-    spark.sql(s"select * from $accessAndIpTable ").show()
 
     //#############################################
     //   3. ip+domain 统计
     //#############################################
     val accessDomainIpSql =
     s"""
-       |select '$hid' as hid, topdomain, domain, destip,
-       |       min(acctime) as firsttime,
-       |       max(acctime) as activetime,
-       |       count(*) as times,
-       |       max(proctype) as proctype
-       |from ${accessAndIpTable}
-       |where iflegal=1 and topdomain!='-1'
-       |group by topdomain, domain, destip
+       |select '$hid' as hid, domain, udf_topDomain(domain) topdomain, destip,
+       |        firsttime, activetime, times, proctype
+       |from
+       |(
+       |    select domain, destip,
+       |           min(acctime) as firsttime,
+       |           max(acctime) as activetime,
+       |           count(*) as times,
+       |           max(proctype) as proctype
+       |    from ${accessAndIpTable}
+       |    where iflegal=1 and topdomain!='-1'
+       |    group by domain, destip
+       |) t
        """.stripMargin
     val domainIpPath = outputParentPath + "/domainip/hid=" + hid + "/d=" + d + "/h=" + h
-    spark.sql(accessDomainIpSql).repartition(10).write.mode(SaveMode.Overwrite).format("orc").save(domainIpPath)
+    spark.sql(accessDomainIpSql).repartition(10).write.mode(SaveMode.Overwrite).
+      format("orc").save(domainIpPath)
 
 
     //#############################################

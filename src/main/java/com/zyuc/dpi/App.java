@@ -6,6 +6,7 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import scala.Tuple2;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -20,6 +21,10 @@ public class App
     {
         SparkSession sparkSession = SparkSession.builder()
                 .appName("test").master("local[*]").enableHiveSupport().getOrCreate();
+
+
+        List list = new ArrayList();
+        list.set(0, "");
 
         sparkSession.stop();
         sparkSession.close();
