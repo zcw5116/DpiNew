@@ -12,9 +12,9 @@ import scala.collection.mutable
 /**
   * Created by zhoucw on 上午11:19.
   */
-object AccessOrcLogQuery {
+object AccessOrcTextLogQuery {
 
-  val logger = Logger.getLogger("accessQuery")
+  val logger = Logger.getLogger("AccessOrcTextLogQuery")
 
   def main(args: Array[String]): Unit = {
 
@@ -29,33 +29,33 @@ object AccessOrcLogQuery {
     val beginTime = sc.getConf.get("spark.app.beginTime", "20171104150116")
     val endTime = sc.getConf.get("spark.app.endTime", "20171104205550")
     val inputOrcPath = sc.getConf.get("spark.app.inputOrcPath", "/tmp/output/accesslog1/data")
-    val outputOrcPath = sc.getConf.get("spark.app.outputOrcPath", "/tmp/zhou")
+    val outputOrcPath = sc.getConf.get("spark.app.outputOrcPath", "/tmp/zhouorc")
     val ifCalCnt = sc.getConf.get("spark.app.ifCalCnt", "1")
     val batchid = sc.getConf.get("spark.app.batchid", "1234")
     val url = sc.getConf.get("spark.app.url", "NI") // http://kk.90wd.cn:883/data/kj83_com.js?_=1509798840672
     val domain = sc.getConf.get("spark.app.domain", "222.186.134.226:8011")
     val srcIpBegin = sc.getConf.get("spark.app.srcIpBegin", "114.101.178.156")
     val srcIpEnd = sc.getConf.get("spark.app.srcIpEnd", "183.166.237.216")
-    val destIpBegin =sc.getConf.get("spark.app.destIpBegin", "222.186.134.226")
-    val destIpEnd = sc.getConf.get("spark.app.destIpEnd", "222.186.134.228")
-    val destPort = sc.getConf.get("spark.app.destPort", "8011")
-    val partitionNum = sc.getConf.get("spark.app.partitionNum", "30")
+    val inputTextPath = sc.getConf.get("spark.app.inputTextPath", "/tmp/input/access-src/*/1009")
+    val outputTextPath = sc.getConf.get("spark.app.outputTextPath", "/tmp/zhoutxt")
 
-
-    val savePath = outputOrcPath + "/" + batchid
+    val saveOrcPath = outputOrcPath + "/" + batchid
+    val saveTextPath = outputTextPath + "/" + batchid
 
     val sdf = new SimpleDateFormat("yyyyMMddHHmmss")
     val targetSdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
     val targetBegin = targetSdf.format(sdf.parse(beginTime))
     val targetEnd = targetSdf.format(sdf.parse(endTime))
+    val beginUnix = sdf.parse(beginTime).getTime/1000
+    val endUnix = sdf.parse(endTime).getTime/1000
 
-    var orcSrcDF = AccessOrcLogQuery.getQueryDF(spark, inputOrcPath + "/hid=" + hid, targetBegin, targetEnd)
+    var orcSrcDF = AccessOrcTextLogQuery.getQueryDF(spark, inputOrcPath + "/hid=" + hid, targetBegin, targetEnd)
+    val textDF = AccessTextLogQuery.getQueryDF(spark, inputTextPath, beginUnix.toString, endUnix.toString).filter(s"hid='${hid}'")
 
     var condition = "1=1 "
     if (url != "NI") {
       val b64Url = Base64.getEncoder.encodeToString(url.getBytes())
       condition =  condition + s" and url like '${b64Url}%'"
-      condition =  condition + s" and url = '${b64Url}'"
     }
 
     if (domain != "NI") {
@@ -70,20 +70,6 @@ object AccessOrcLogQuery {
     if (srcIpEnd != "NI") {
       val srcIpEnd2Long = ip2Long(srcIpEnd)
       condition = condition + s" and udf_ip2long(srcip)<=${srcIpEnd2Long}"
-    }
-
-    if (destIpBegin != "NI") {
-      val destIpBegin2Long = ip2Long(destIpBegin)
-      condition = condition + s" and udf_ip2long(destip)>=${destIpBegin2Long}"
-    }
-
-    if (destIpEnd != "NI") {
-      val destIpEnd2Long = ip2Long(destIpEnd)
-      condition = condition + s" and udf_ip2long(destip)<=${destIpEnd2Long}"
-    }
-
-    if (destPort != "NI") {
-      condition = condition + s" and destport='${destPort}'"
     }
 
     def ip2Long(strIp: String) = {
@@ -114,34 +100,65 @@ object AccessOrcLogQuery {
       ip2Long(strIp)
     })
 
-
+    //################################################################################
+    //
+    //                           ORC
+    //
+    //################################################################################
     val resultDF = orcSrcDF.filter(condition)
-    resultDF.repartition(partitionNum.toInt).write.format("csv").mode(SaveMode.Overwrite).options(Map("sep" -> ",")).save(savePath)
+    resultDF.write.format("csv").mode(SaveMode.Overwrite).options(Map("sep" -> ",")).save(saveOrcPath)
 
     val queryTime = new Date().getTime - begin
 
     begin = new Date().getTime
+
+    var cnt = 0l
+    if (ifCalCnt == "1") {
+      // cnt = spark.read.format("csv").options(Map("sep" -> ",")).load(saveOrcPath).count()
+      cnt = resultDF.count()
+    }
+    val calcTime = new Date().getTime - begin
+
+    begin = new Date().getTime
     val fileSystem = FileSystem.get(sc.hadoopConfiguration)
-    fileSystem.globStatus(new Path(savePath + "/*")).foreach(p=>{
+    fileSystem.globStatus(new Path(saveOrcPath + "/*")).foreach(p=>{
       if(p.getLen==0){
         fileSystem.delete(p.getPath, false)
       }
     })
     val delTime = new Date().getTime - begin
 
+    fileSystem.rename(new Path(saveOrcPath), new Path(saveOrcPath + "_" + cnt + "_" + queryTime + "_" + calcTime + "_" + delTime))
+
+    //################################################################################
+    //
+    //                           TEXT
+    //
+    //################################################################################
+    begin = new Date().getTime
+    val resultTextDF = textDF.filter(condition)
+    resultTextDF.write.format("csv").mode(SaveMode.Overwrite).options(Map("sep" -> ",")).save(saveTextPath)
+
+    val queryTextTime = new Date().getTime - begin
 
     begin = new Date().getTime
 
-    var cnt = 0l
+    var textCnt = 0l
     if (ifCalCnt == "1") {
-      cnt = spark.read.format("csv").options(Map("sep" -> ",")).load(savePath).count()
+      textCnt = spark.read.format("csv").options(Map("sep" -> ",")).load(saveTextPath).count()
     }
-    val calcTime = new Date().getTime - begin
+    val calcTextTime = new Date().getTime - begin
 
+    begin = new Date().getTime
+    fileSystem.globStatus(new Path(saveTextPath + "/*")).foreach(p=>{
+      if(p.getLen==0){
+        fileSystem.delete(p.getPath, false)
+      }
+    })
+    val delTextTime = new Date().getTime - begin
 
-    fileSystem.rename(new Path(savePath), new Path(savePath + "_" + cnt + "_" + queryTime + "_" + calcTime + "_" + delTime))
+    fileSystem.rename(new Path(saveTextPath), new Path(saveTextPath + "_" + textCnt + "_" + queryTextTime + "_" + calcTextTime + "_" + delTextTime))
 
-   //resultDF.show()
   }
 
 
@@ -177,7 +194,6 @@ object AccessOrcLogQuery {
     }
     partitionSet.+=(getM5Partition(end))
   }
-
 
   /**
     * 根据根据时间返回DataFrame
@@ -229,7 +245,6 @@ object AccessOrcLogQuery {
     })
     resultDF
   }
-
 
 
   def loadFilesToDF(spark: SparkSession, inputPath: String): DataFrame = {

@@ -23,6 +23,7 @@ object AccesslogETL4 {
     val sc = spark.sparkContext
     val sqlContext = spark.sqlContext
 
+
     sqlContext.sql("use dpi")
     val appName = sc.getConf.get("spark.app.name") //"name_201711091337" //
     val inputPath = sc.getConf.get("spark.app.inputPath", "hdfs://spark123:8020/tmp/input/accesslog/")

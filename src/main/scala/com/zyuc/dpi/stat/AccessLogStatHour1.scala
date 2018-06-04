@@ -1,14 +1,15 @@
 package com.zyuc.dpi.stat
 
 import org.apache.spark.sql.{SaveMode, SparkSession}
+import org.apache.spark.sql.functions.udf
 
 /**
   * Created by zhoucw on 18-4-24 上午9:55.
   */
-object AccessLogStatHour {
+object AccessLogStatHour1 {
   def main(args: Array[String]): Unit = {
-    val spark = SparkSession.builder().enableHiveSupport().appName("AccessLogStatHour").master("local[*]").getOrCreate()
-   // val spark = SparkSession.builder().enableHiveSupport().getOrCreate()
+    // val spark = SparkSession.builder().enableHiveSupport().appName("AccessLogStatHour").master("local[*]").getOrCreate()
+    val spark = SparkSession.builder().enableHiveSupport().getOrCreate()
 
     //#############################################
     //  参数接收

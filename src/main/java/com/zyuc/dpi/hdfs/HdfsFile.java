@@ -86,7 +86,6 @@ public class HdfsFile {
         TreeSet<HdfsFile> newTreeSet = new TreeSet<HdfsFile>(new HdfsFileSizeComparator("asc"));
         List<String> fileGroups = new ArrayList<String>();
 
-
         int num = 0;
 
         HdfsFile first = treeSet.first();
@@ -114,7 +113,7 @@ public class HdfsFile {
     }
 
 
-    /**
+    /**装箱算法分组
      * 将hdfsfile和newTreeSet元素比较, 从newTreeSet中最大的元素比较， 如果两个元素的size之和小于128， 那么就可以合并。
      * 如果之和大于等于128或者newTreeSet的元素为空， 则将hdfsfile添加为新元素。
      * @param newTreeSet
@@ -152,7 +151,6 @@ public class HdfsFile {
         }
 
         System.out.println(newTreeSet);
-
 
     }
 

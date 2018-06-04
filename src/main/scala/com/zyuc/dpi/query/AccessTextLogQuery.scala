@@ -18,7 +18,9 @@ object AccessTextLogQuery {
     val hid = sc.getConf.get("spark.app.houseid", "1000")
     val beginTime = sc.getConf.get("spark.app.beginTime", "2017-11-04 20:01:16")
     val endTime = sc.getConf.get("spark.app.endTime", "2017-11-04 20:55:50")
-    val inputPath = sc.getConf.get("spark.app.inputFiles", "/tmp/input/access-src/0800/1000,/tmp/input/access-src/0805/1000")
+    //val inputPath = sc.getConf.get("spark.app.inputFiles", "/tmp/input/access-src/0800/1000,/tmp/input/access-src/0805/1000")
+    val inputPath = sc.getConf.get("spark.app.inputFiles", "/tmp/input/access-src/*/1009")
+
     val batchid = sc.getConf.get("spark.app.batchid", System.currentTimeMillis().toString)
     logger.info("batchid:" + batchid)
 
@@ -28,7 +30,7 @@ object AccessTextLogQuery {
 
     val df = getQueryDF(spark, inputPath, beginUnix.toString, endUnix.toString)
     df.show()
-    df.write.format("csv").mode(SaveMode.Overwrite).options(Map("sep"->",")).save("/tmp/zhou/" + "1112/" + "2223")
+   // df.write.format("csv").mode(SaveMode.Overwrite).options(Map("sep"->",")).save("/tmp/zhou/" + "1112/" + "2223")
    // df.write.format("csv").mode(SaveMode.Overwrite).options(Map("sep"->","))save("/tmp/zhou/" + batchid)
 
   }

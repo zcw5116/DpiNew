@@ -89,9 +89,10 @@ object AccessLogStatDay {
 	}
 	
 	def main(args: Array[String]): Unit = {
-		val spark = SparkSession.builder().enableHiveSupport()
-	    	.appName("AccessLogStat_test").master("local[2]").getOrCreate()
-		
+	//	val spark = SparkSession.builder().enableHiveSupport().appName("AccessLogStat_test").master("local[2]").getOrCreate()
+
+		val spark = SparkSession.builder().enableHiveSupport().getOrCreate()
+
 		val sc = spark.sparkContext
 		
 		val appName = sc.getConf.get("appName", "AccessLogStat_test")

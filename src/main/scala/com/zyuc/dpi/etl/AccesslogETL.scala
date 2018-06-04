@@ -47,7 +47,7 @@ object AccesslogETL {
     * @return
     */
   @throws(classOf[Exception])
-  def doJob(parentContext: SQLContext, fileSystem: FileSystem, hiveDb:String, params: JSONObject): String = {
+  def doJob(parentContext: SQLContext, fileSystem: FileSystem, hiveDb: String, params: JSONObject): String = {
 
     try {
       var info = ""
@@ -110,31 +110,38 @@ object AccesslogETL {
       val sdf = new SimpleDateFormat("yyyyMMddHHmm")
       val curTime = sdf.parse(loadTime)
       val targetSdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
-      val pre2HourTime = targetSdf.format(curTime.getTime() - 2 * 60 * 60 * 1000)
-      val pre1HourTime = targetSdf.format(curTime.getTime() - 1 * 60 * 60 * 1000)
+      val preHourTime = targetSdf.format(curTime.getTime() - 2 * 60 * 60 * 1000)
+      val curHourTime = targetSdf.format(curTime.getTime() - 1 * 60 * 60 * 1000)
 
       var resultDF: DataFrame = null
 
       fileSystem.globStatus(new Path(inputDoingLocation + "/*")).foreach(p => {
         val hLoc = p.getPath.toString
-        val partitionSize = AccessUtil.getPartitionSize(hLoc.substring(hLoc.lastIndexOf("/" )+ 1))
-        val partitionNum = FileUtils.computePartitionNum(fileSystem, hLoc, partitionSize)
+        //val partitionSize = AccessUtil.getPartitionSize(hLoc.substring(hLoc.lastIndexOf("/") + 1))
+        val partitionNum = FileUtils.computePartitionNum(fileSystem, hLoc, coalesceSize)
         logger.info("hLoc:" + hLoc + ", partitionNum:" + partitionNum)
-        val hRowRdd = sqlContext.sparkContext.textFile(hLoc).
-          map(x => AccessUtil.parse(x)).filter(_.length != 1)
-        val hDF = sqlContext.createDataFrame(hRowRdd, AccessUtil.struct)
-        val curHourDF = hDF.filter(s"acctime>='$pre1HourTime'")
-        val preHourDF = hDF.filter(s"acctime>'$pre2HourTime' and acctime<'$pre1HourTime' ")
+        if (partitionNum > 0) {
 
-        val preHourPartNum = if (partitionNum / 3 == 0) 1 else partitionNum / 3
+          val hRowRdd = sqlContext.sparkContext.textFile(hLoc).
+            map(x => AccessUtil.parse(x)).filter(_.length != 1)
 
-        val newDF = curHourDF.coalesce(partitionNum).union(preHourDF.coalesce(preHourPartNum))
+          val hDF = sqlContext.createDataFrame(hRowRdd, AccessUtil.struct)
 
-        if (resultDF != null) {
-          resultDF = resultDF.union(newDF)
-        } else {
-          resultDF = newDF
+          val curHourDF = hDF.filter(s"acctime>='$curHourTime'")
+          val preHourDF = hDF.filter(s"acctime>'$preHourTime' and acctime<'$curHourTime' ")
+
+          val preHourPartNum = if (partitionNum / 3 == 0) 1 else partitionNum / 3
+
+          val newDF = curHourDF.coalesce(partitionNum).union(preHourDF.coalesce(preHourPartNum))
+
+          if (resultDF != null) {
+            resultDF = resultDF.union(newDF)
+          } else {
+            resultDF = newDF
+          }
+
         }
+
       })
 
 
@@ -206,7 +213,7 @@ object AccesslogETL {
       result + " success," + "convertTime:#" + convertTime + "#,moveTime:#" + moveTime + "#,refreshTime:#" + refreshTime
 
     } catch {
-      case jsonE:JsonValueNotNullException => {
+      case jsonE: JsonValueNotNullException => {
         logger.error("[" + params + "]-" + jsonE.getMessage)
         throw new JsonValueNotNullException("[" + params + "]-" + jsonE.getMessage)
         null

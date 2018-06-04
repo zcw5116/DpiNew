@@ -72,6 +72,9 @@ object AccessUtil {
       val domain = arr(6).trim
 
       var url = arr(7)
+
+      // 对base64位加密的url进行解码
+      /*
       var isbase = "1"
       try {
         val urlBytes = Base64.getDecoder.decode(arr(7))
@@ -81,6 +84,8 @@ object AccessUtil {
           isbase = "0"
         }
       }
+      */
+
       Row(houseid, arr(1), arr(2), arr(3), arr(4), arr(5), domain, url, arr(8), timeTuple._1, timeTuple._2, timeTuple._3, timeTuple._4)
     } catch {
       case e: Exception => {
@@ -90,6 +95,12 @@ object AccessUtil {
     }
   }
 
+  /**
+    * 根据配置文件， 配置每个机房的分区大小
+    * @deprecated
+    * @param hid
+    * @return
+    */
   def getPartitionSize(hid:String):Int = {
     val config = ConfigUtil.getConfig("/home/slview/bigdata/app/spark/server/config/partition.conf")
     var partitionSize = config.getString("partitionSize.0")
@@ -104,12 +115,12 @@ object AccessUtil {
   }
 
   def main(args: Array[String]): Unit = {
-   // println(getTime("1521172762"))/hadoop/.m2/repository/com/typesafe/config/1.2.1/config-1.2.1.jar
+    // println(getTime("1521172762"))/hadoop/.m2/repository/com/typesafe/config/1.2.1/config-1.2.1.jar
 
 
-   // val asBytes = Base64.getDecoder.decode("aHR0cDovL2J4ZnNmcy5zeGwubWUvdGVtcC9iM2Y2NDM1YmQzNjc4MzRhMzUwNGE5YzYxMDdmMmRjYS5waHA/bT0x")
+    // val asBytes = Base64.getDecoder.decode("aHR0cDovL2J4ZnNmcy5zeGwubWUvdGVtcC9iM2Y2NDM1YmQzNjc4MzRhMzUwNGE5YzYxMDdmMmRjYS5waHA/bT0x")
 
-   // System.out.println(new String(asBytes, "utf-8"))
+    // System.out.println(new String(asBytes, "utf-8"))
     val hLoc = "hdfs://cdh-nn-001:8020/hadoop/accesslog/201805101005_doing/1005"
     val hid = hLoc.substring(hLoc.lastIndexOf("/" )+ 1)
     println(hid)

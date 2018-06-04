@@ -54,7 +54,7 @@ object FileUtils {
       Math.ceil(msize).toInt
     } catch {
       case e: IOException => e.printStackTrace()
-        1
+        0
     }
   }
 

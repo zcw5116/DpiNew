@@ -6,9 +6,11 @@ import java.util.Comparator;
  * Created by zhoucw on 18-5-22 上午10:16.
  */
 public class HdfsFileSizeComparator  implements Comparator<HdfsFile> {
+
     private String order;
 
     public HdfsFileSizeComparator(String order){
+
         this.order = order;
     }
     @Override
