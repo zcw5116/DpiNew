@@ -130,7 +130,7 @@ object AccesslogETL {
           val curHourDF = hDF.filter(s"acctime>='$curHourTime'")
           val preHourDF = hDF.filter(s"acctime>'$preHourTime' and acctime<'$curHourTime' ")
 
-          val preHourPartNum = if (partitionNum / 3 == 0) 1 else partitionNum / 3
+          val preHourPartNum = if (partitionNum / 2 == 0) 1 else partitionNum / 2
 
           val newDF = curHourDF.coalesce(partitionNum).union(preHourDF.coalesce(preHourPartNum))
 
@@ -139,9 +139,7 @@ object AccesslogETL {
           } else {
             resultDF = newDF
           }
-
         }
-
       })
 
 
