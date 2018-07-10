@@ -82,9 +82,26 @@ object AccesslogETL {
         template
       }
 
-      val inputLocation = inputPath + batchID
-
+      val inputLocation = inputPath + "/" + batchID
       val inputDoingLocation = inputPath + "/" + batchID + "_doing"
+      val inputDoneLocation = inputPath + "/" + batchID + "_done"
+
+      val srcExists = fileSystem.exists(new Path(inputLocation))
+      val srcDoingExists = fileSystem.exists(new Path(inputDoingLocation))
+      val srcDoneExists = fileSystem.exists(new Path(inputDoneLocation))
+
+      if(srcDoneExists) {
+        fileSystem.globStatus(new Path(inputLocation + "/*")).foreach(x => {
+          val hidDir = x.getPath.getName
+          fileSystem.globStatus(new Path(s"${inputLocation}/$hidDir}/*")).foreach(f => {
+            val fname = f.getPath.getName
+            val newPath = new Path(inputDoneLocation + "/" + hidDir + "/" + fname)
+            fileSystem.rename(f.getPath, newPath)
+          })
+        })
+
+      }
+
 
       val dirExists = fileSystem.exists(new Path(inputLocation))
       if (!dirExists && tryTime == 0) {
@@ -162,7 +179,6 @@ object AccesslogETL {
       logger.info("[" + appName + "] 数据移动到正式分区用时：" + moveTime)
 
 
-      val inputDoneLocation = inputPath + "/" + batchID + "_done"
       val isDoneRenamed = FileUtils.renameHDFSDir(fileSystem, inputDoingLocation, inputDoneLocation)
 
       if (!isDoneRenamed) {

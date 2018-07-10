@@ -1,5 +1,7 @@
 package com.zyuc.test
 
+
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.{Row, SparkSession}
 import org.apache.spark.sql.types.{IntegerType, StringType, StructField, StructType}
 
@@ -11,22 +13,12 @@ object Spark2Test {
     val spark = SparkSession.builder().enableHiveSupport().appName("test").master("local[3]").getOrCreate()
     val sc = spark.sparkContext
 
-    val struct = StructType(Array(
-      StructField("a", StringType),
-      StructField("b", StringType),
-      StructField("c", StringType),
-      StructField("d", StringType),
-      StructField("e", IntegerType),
 
-      StructField("f", StringType),
-      StructField("g", StringType)
-    ))
 
-    val rowRDD = sc.textFile("/hadoop/accesslog_stat/day/out/domain/hid=246/d=180522").map(x=>x.split("\\t")).
-      map(x=>Row(x(0), x(1), x(2), x(3),x(4), x(5), x(6)))
+    val fileSystem = FileSystem.get(sc.hadoopConfiguration)
 
-    val df = spark.createDataFrame(rowRDD, struct)
-    df.printSchema()
+    val isb = fileSystem.exists(new Path("/tmp/2018_*"))
+    println("isb:" + isb)
 
   }
 }

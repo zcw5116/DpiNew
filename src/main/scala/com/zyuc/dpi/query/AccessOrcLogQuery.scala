@@ -56,7 +56,14 @@ object AccessOrcLogQuery {
 
     val savePath = outputOrcPath + "/" + batchid
 
-    var condition = "1=1 "
+    val srcSdf = new SimpleDateFormat("yyyyMMddHHmmss")
+    val targetSdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+    val beginAcc = targetSdf.format(srcSdf.parse(beginTime).getTime)
+    val endAcc = targetSdf.format(srcSdf.parse(endTime).getTime)
+
+
+
+    var condition = s"acctime>='${beginAcc}' and acctime<='${endAcc}' "
     if (url != "NI") {
       val b64Url = Base64.getEncoder.encodeToString(url.getBytes())
      // condition =  condition + s" and url like '${b64Url}%'"
