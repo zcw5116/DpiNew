@@ -1,6 +1,8 @@
 package com.zyuc.dpi.basic
 
+import java.text.SimpleDateFormat
 import java.util
+import java.util.Date
 import java.util.concurrent.{ExecutorService, Executors, TimeUnit}
 
 import com.zyuc.dpi.hdfs.{HdfsFile, HdfsFileSizeComparator}
@@ -23,7 +25,8 @@ object FileManage {
     val sc = spark.sparkContext
     val sqlContext = spark.sqlContext
 
-    val appName = sc.getConf.get("spark.app.name") // 格式： name_第几次合并_待合并的时间目录
+    val appName = sc.getConf.get("spark.app.name") // 格式： name_待合并的时间目录
+    val mergeFlag = sc.getConf.get("spark.app.mergeFlag", "1") // 格式： 合并标识, 1-第一次, 2-第二次合并.., rerun-重试合并
     val inputPath = sc.getConf.get("spark.app.inputPath", "/hadoop/test/output/data/")
     val mergePath = sc.getConf.get("spark.app.mergePath", "/hadoop/test/output/merge/")
     val houseids = sc.getConf.get("spark.app.houseids", "123,124")
@@ -33,8 +36,8 @@ object FileManage {
     val singFileMaxSize = singleFileSize.toInt * 1024 * 1024
 
     val hid = appName.substring(appName.lastIndexOf("_") + 1, appName.lastIndexOf("-"))
-    val dataTime = appName.substring(appName.lastIndexOf("-") + 1)
-    val batchid = appName.substring(appName.lastIndexOf("_") + 1)
+    val dataTime = appName.substring(appName.lastIndexOf("_") + 1)
+
     val d = dataTime.substring(2, 8)
     val h = dataTime.substring(8, 10)
     val m5 = dataTime.substring(10, 12)
@@ -46,7 +49,7 @@ object FileManage {
     val filePath = inputPath
     val fileGroupsMap = genFileGroups(fileSystem, filePath, dataTime, houseArr, filterMaxSize.toInt, singFileMaxSize)
 
-    mergeFiles(spark, fileGroupsMap, fileSystem, filePath, dataTime, houseArr, mergePath, batchid, ifDeleteTmp)
+    mergeFiles(spark, fileGroupsMap, fileSystem, filePath, dataTime, houseArr, mergePath, mergeFlag, ifDeleteTmp)
 
   }
 
@@ -118,15 +121,18 @@ object FileManage {
   }
 
 
-  def mergeFiles(spark: SparkSession, fileGroupsMap: util.HashMap[String, util.ArrayList[HdfsFile]], fileSystem: FileSystem, filePath: String, dataTime: String, houseArr: Array[String], mergePath: String, batchId: String, ifDeleteTmp: String): Unit = {
+  def mergeFiles(spark: SparkSession, fileGroupsMap: util.HashMap[String, util.ArrayList[HdfsFile]], fileSystem: FileSystem, baseDir: String, dataTime: String, houseArr: Array[String], mergePath: String, mergeFlag: String, ifDeleteTmp: String): Unit = {
 
-    val mergeTmpPath = mergePath + "/" + batchId + "/tmp"
-    val mergeDataPath = mergePath + "/" + batchId + "/data"
+    val mergeTmpPath = mergePath + "/" + mergeFlag + "_" + dataTime + "/tmp"
+    val mergeDataPath = mergePath + "/" + mergeFlag + "_" + dataTime + "/data"
 
     val d = dataTime.substring(2, 8)
     val h = dataTime.substring(8, 10)
     val m5 = dataTime.substring(10, 12)
     val partitionPath = s"d=${d}/h=${h}/m5=${m5}"
+
+    val sdf = new SimpleDateFormat("yyMMddHHmmss")
+    val now=sdf.format(new Date().getTime)
 
 
     def renameFile2TmpByHid(hid: String): Unit = {
@@ -134,10 +140,21 @@ object FileManage {
       if (fileGroups == null) {
         return
       }
+
+     /* if(mergeFlag == "rerun"){
+        // 删除mergeflag相同的数据
+        fileSystem.globStatus(new Path(mergeDataPath + "/hid=" + hid + "/" + partitionPath + "/merge_" + mergeFlag + "*.orc")).foreach(
+          x => fileSystem.delete(x.getPath(), false)
+        )
+      }else{
+
+      }
+      */
+
       var num = 0
       fileGroups.map(x => x.getName.split("#")).foreach(g => {
         g.foreach(f => {
-          val srcPath = new Path(filePath + "/hid=" + hid + "/" + partitionPath + "/" + f)
+          val srcPath = new Path(baseDir + "/hid=" + hid + "/" + partitionPath + "/" + f)
           val targePath = new Path(mergeTmpPath + "/hid=" + hid + "/" + num + "/" + f)
           if (!fileSystem.exists(targePath.getParent)) {
             fileSystem.mkdirs(targePath.getParent)
@@ -214,10 +231,11 @@ object FileManage {
     df.write.format("orc").mode(SaveMode.Overwrite).partitionBy("hid").save(mergeDataPath)
 
     def renameFile2DataByHid(hid: String) = {
+
       var index = 0;
       fileSystem.globStatus(new Path(mergeDataPath + "/hid=" + hid + "/*.orc")).foreach(f => {
         println(f.getPath.getName)
-        val targePath = new Path(filePath + "/hid=" + hid + "/" + partitionPath + "/merge_" + batchId + "_" + index + ".orc")
+        val targePath = new Path(baseDir + "/hid=" + hid + "/" + partitionPath + "/merge_" + mergeFlag + "_" + now + "_" + index + ".orc")
         fileSystem.rename(f.getPath, targePath)
         index = index + 1
       })
@@ -229,7 +247,7 @@ object FileManage {
 
     // 删除临时目录
     if (ifDeleteTmp == "1") {
-      fileSystem.globStatus(new Path(mergePath + "/" + batchId)).foreach(x => {
+      fileSystem.globStatus(new Path(mergePath + "/" + mergeFlag + "_" + dataTime)).foreach(x => {
         fileSystem.delete(x.getPath, true)
       })
     }

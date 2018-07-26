@@ -18,7 +18,9 @@ object SparkServer {
 
   def main(args: Array[String]) {
 
+   // val spark = SparkSession.builder().appName("test").master("local[*]").enableHiveSupport().getOrCreate()
     val spark = SparkSession.builder().enableHiveSupport().getOrCreate()
+
     val sc = spark.sparkContext
     val port = sc.getConf.get("spark.server.port", "9999")
     // 配置文件absolutepath

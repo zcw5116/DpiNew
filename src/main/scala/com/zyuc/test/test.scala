@@ -1,5 +1,7 @@
 package com.zyuc.test
 
+import com.zyuc.dpi.utils.{FileUtils, JsonValueNotNullException}
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.expressions.Window
@@ -11,20 +13,45 @@ import org.apache.spark.sql.hive.HiveContext
   * Created by zhoucw on 18-4-24 下午7:13.
   */
 object test {
+
+
+
+    def mvFiles(fileSystem: FileSystem, fromDir: String, toDir: String): Unit = {
+      try {
+        fileSystem.globStatus(new Path(fromDir + "/*")).foreach(x => {
+          val hidDir = x.getPath.getName
+          if(!fileSystem.exists(new Path(toDir + "/" + hidDir ))){
+            fileSystem.mkdirs(new Path(toDir + "/" + hidDir ))
+          }
+
+          fileSystem.globStatus(new Path(s"${fromDir}/${hidDir}/*")).foreach(f => {
+            val fname = f.getPath.getName
+            println("fname:" +fname)
+            val newPath = new Path(toDir + "/" + hidDir + "/" + fname)
+
+            println(s"${fromDir}/${hidDir},${toDir}/${hidDir}, result:" + fileSystem.rename(f.getPath, newPath))
+
+          })
+        })
+        val fromSize = fileSystem.getContentSummary(new Path(fromDir)).getLength
+        if(fromSize==0){
+          fileSystem.delete(new Path(fromDir), true)
+        }
+
+      } catch {
+        case e: Exception => {
+          throw new Exception(s"move files from ${fromDir} to ${toDir} failed." + e.getMessage)
+        }
+      }
+  }
+
   def main(args: Array[String]): Unit = {
-    val spark = SparkSession.builder().appName("test").master("local[*]").enableHiveSupport().getOrCreate()
+
+    val spark = SparkSession.builder().enableHiveSupport().appName("AccessLogStatHour").master("local[*]").getOrCreate()
     val sc = spark.sparkContext
+    val fileSystem = FileSystem.get(sc.hadoopConfiguration)
 
-    val dataSet = List((1, 2.0), (1, 3.0), (1, 1.0), (1, -2.0), (1, -1.0))
-
-    import spark.implicits._
-    var df = sc.parallelize(dataSet).map(x => (x._1, x._2)).toDF("x", "AmtPaid")
-
-    val wd = Window.partitionBy("x").rowsBetween(Long.MinValue, 0)
-
-    df = df.withColumn("AmtPaidCumSum", sum($"AmtPaid").over(wd))
-
-    df = df.withColumn("AmtPaidCumSumMax", max($"AmtPaidCumSum").over(wd))
-    df.show()
+    // /hadoop/test1/201807251205
+    mvFiles(fileSystem, "/hadoop/test1/201807251205", "/hadoop/test1/201807251205_done")
   }
 }

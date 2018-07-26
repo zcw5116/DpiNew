@@ -13,7 +13,8 @@ import org.apache.hadoop.io.IOUtils
 import scala.collection.mutable
 
 
-object FileUtils {
+object FileUtils{
+
 
   /**
     *
@@ -273,8 +274,16 @@ object FileUtils {
   def renameHDFSDir(fileSystem: FileSystem, srcLocation: String, destLocation: String): Boolean = {
     val srcPath = new Path(srcLocation)
     val destPath = new Path(destLocation)
-    val isRename = fileSystem.rename(srcPath, destPath)
-    isRename
+    var msg = s"rename from ${srcLocation} to ${destLocation}"
+    if(fileSystem.exists(destPath)){
+      throw new Exception(msg + s" failed, ${destLocation} already exists.")
+    }
+
+    val result = fileSystem.rename(srcPath, destPath)
+    if(!result){
+      throw new Exception(msg + " failed")
+    }
+    result
   }
 
   /**

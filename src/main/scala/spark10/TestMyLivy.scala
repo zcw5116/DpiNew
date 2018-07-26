@@ -11,6 +11,8 @@ object TestMyLivy {
     val spark = SparkSession.builder().getOrCreate()
     val sc = spark.sparkContext
 
+
+
     val list = List("1", "2", "a", "b", "c", "d", "e", "f", "g", "h")
 
     val rdd = sc.makeRDD(list)
