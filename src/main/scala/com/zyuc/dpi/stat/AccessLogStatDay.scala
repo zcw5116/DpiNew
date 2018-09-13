@@ -14,7 +14,7 @@ object AccessLogStatDay {
   val tabIpPort = "tmptab_ipport"
   val tabIpPortDomain = "tmptab_ipportdomain"
   val tabTopDomain = "tmptab_topdomain"
-  //  val tabDomainIp = "tmptab_domainip"
+  val tabDomainIp = "tmptab_domainip"
   //  val tabIllegLog = "tmptab_illeglog"
 
 
@@ -36,6 +36,7 @@ object AccessLogStatDay {
            				   |       sum(times) as times, max(destip) as destip,
            				   |       max(topdomain) as topdomain
            				   |from   $table
+                     |where  topdomain != ""
            				   |group  by hid, domain
 				 """.stripMargin
       case `tabTopDomain` =>
@@ -44,6 +45,7 @@ object AccessLogStatDay {
            				   |       min(firsttime) as firsttime, max(activetime) as activetime,
            				   |       sum(times) as times
            				   |from   $table
+                     |where  topdomain != ""
            				   |group  by hid, topdomain, destip
 				 """.stripMargin
    /* case `tabIllegLog` =>
@@ -59,6 +61,14 @@ object AccessLogStatDay {
            				   |from   $table
            				   |group  by hid, destip, destport, proctype
 				 """.stripMargin
+      case `tabDomainIp` =>
+        s"""
+           				   |select hid, domain, topdomain, destip,
+           				   |       min(firsttime) as firsttime, max(activetime) as activetime,
+           				   |       sum(times) as times, max(proctype) as proctype
+           				   |from   $table
+           				   |group  by hid, domain, topdomain, destip
+				 """.stripMargin
     }
   }
 
@@ -66,7 +76,7 @@ object AccessLogStatDay {
     val tabLocMap: Map[String, Array[String]] = Map(
       tabDomain -> Array("domain", "domain"),
       tabTopDomain -> Array("domain", "topdomain"),
-      //  tabDomainIp -> "domainip",
+      tabDomainIp -> Array("domainip", "domainip"),
       //  tabIllegLog -> Array("illegLog", "illegLog"),
       tabIpPort -> Array("ipport", "ipport"),
       tabIpPortDomain -> Array("ipportdomain", "ipportdomain")
@@ -91,7 +101,6 @@ object AccessLogStatDay {
           isDirEmpty = false
         }
       }
-
 
       if (!isDirEmpty) {
         val df = spark.read.format("orc").load(inputLocation)

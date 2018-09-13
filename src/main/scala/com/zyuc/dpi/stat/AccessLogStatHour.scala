@@ -20,6 +20,7 @@ object AccessLogStatHour {
     val hourtime = sc.getConf.get("spark.app.hourtime", "2018042408")
     val outputParentPath = sc.getConf.get("spark.app.outputParentPath", "/hadoop/accesslog_stat/hour/out")
     val topDomainInfoFile = sc.getConf.get("spark.app.topDomainInfoFile", "/hadoop/basic/domainInfo.txt")
+    val foreignDomainFile = sc.getConf.get("spark.app.foreignDomainFile", "")
 
     /*    // spark sql 使用正则表达式有bug, 使用自定义的udf，正则表达式参考原pig程序
         val udf_isDomain = udf({
@@ -37,6 +38,7 @@ object AccessLogStatHour {
     //   广播域名基础数据
     //#############################################
     registerTopDomainUDF(spark, topDomainInfoFile)
+    registerForeignDomainUDF(spark, foreignDomainFile)
 
     //#############################################
     //   读取访问日志数据
@@ -46,6 +48,7 @@ object AccessLogStatHour {
     val inputPath = inputParentPath + "/" + "hid=" + hid + "/d=" + d + "/h=" + h
     val accessTable = "accessLog"
     val dataDF = spark.read.format("orc").load(inputPath)
+
     // 增加是否合法域名的判断
     //dataDF.withColumn("isdomain", udf_isDomain(dataDF.col("domain"))).createOrReplaceTempView(accessTable)
     dataDF.createOrReplaceTempView(accessTable)
@@ -97,7 +100,7 @@ object AccessLogStatHour {
        |select '$hid' as hid, destip, destport, proctype,
        |       min(firsttime)  as firsttime,
        |       max(activetime) as activetime,
-       |       count(*)        as times
+       |       sum(times)      as times
        |from ${ipPortDomainTable}
        |group by destip, destport, proctype
      """.stripMargin
@@ -134,9 +137,11 @@ object AccessLogStatHour {
     val accessDomainDf = spark.read.format("orc").load(domainIpPath)
     val accessDomainTable = "accessDomain"
     accessDomainDf.createOrReplaceTempView(accessDomainTable)
+    // 过滤国外域名
+    val addsql = if (foreignDomainFile.length() > 0) {"where udf_foreignDomain(domain) = 0"} else {""}
     val accessDomainSql =
     s"""
-       |select '$hid' as hid, domain,
+       |select '$hid' as hid, domain, udf_foreignDomain(domain) as isforeign,
        |       min(firsttime)  as firsttime,
        |       max(activetime) as activetime,
        |       sum(times)      as times,
@@ -146,8 +151,38 @@ object AccessLogStatHour {
        |group by domain
      """.stripMargin
     val domainPath = outputParentPath + "/domain/hid=" + hid + "/d=" + d + "/h=" + h
-    spark.sql(accessDomainSql).repartition(1).write.mode(SaveMode.Overwrite)
+    val foreignDomainPath = outputParentPath + "/foreigndomain/hid=" + hid + "/d=" + d + "/h=" + h
+
+    val domainDF = spark.sql(accessDomainSql)
+    domainDF.filter("isforeign=0").repartition(1).write.mode(SaveMode.Overwrite)
       .format("orc").save(domainPath)
+    domainDF.filter("isforeign=1").repartition(1).write.mode(SaveMode.Overwrite)
+      .format("csv").options(Map("sep" -> "\\t")).save(foreignDomainPath)
+  }
+
+  def registerForeignDomainUDF (spark: SparkSession, foreignDomainFile: String): Unit = {
+    if (foreignDomainFile.length() == 0) {
+      return
+    }
+    var dbv_foreDomain: Array[String] = Array()
+    val sc = spark.sparkContext
+    val foreDomain = sc.textFile(foreignDomainFile).map(x => x.split("-")).filter(_.length == 3).map(x => x(0)).collect()
+    val bd_foreDomain = sc.broadcast(foreDomain)
+    dbv_foreDomain = bd_foreDomain.value
+
+    spark.udf.register("udf_foreignDomain", (domain: String) => {
+      var matchForeign = 0
+
+      val regex = ".*\\.(\\w+)(?:\\:\\d+|)$".r
+      if (regex.pattern.matcher(domain).matches()) {
+        val regex(suffix) = domain
+
+        if (dbv_foreDomain.contains(suffix)) {
+          matchForeign = 1
+        }
+      }
+      matchForeign
+    })
   }
 
   def registerTopDomainUDF (spark: SparkSession, topDomainInfoFile: String): Unit = {
