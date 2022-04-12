@@ -19,7 +19,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <spark.version>2.2.0.cloudera2</spark.version>
         <jedis.version>2.8.2</jedis.version>
-        <hadoop.version>2.6.0-cdh5.13.0</hadoop.version>
+        <hadoop.version>3.2.3</hadoop.version>
         <hbase.version>1.2.0-cdh5.13.0</hbase.version>
         <fastjson.version>1.2.14</fastjson.version>
         <jetty.version>9.2.5.v20141112</jetty.version>
